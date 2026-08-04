@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sosyal Cafe - Akıllı POS v7.5 (Kurtarma Modüllü)</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { 
+            --sidebar-bg: #1c1c24; --bg-color: #f0f2f5; --primary: #f59e0b; 
+            --dark: #334155; --light: #e2e8f0; --success: #10b981; 
+            --danger: #ef4444; --text-light: #f8fafc; --blue: #3b82f6; --purple: #8b5cf6;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; background: var(--bg-color); display: flex; height: 100vh; overflow: hidden; }
+        
+        .login-screen { position: absolute; width: 100%; height: 100%; background: var(--bg-color); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        .login-box { background: white; padding: 50px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); text-align: center; }
+        .login-box h1 { margin-top: 0; color: var(--dark); font-size: 32px; }
+        .login-box h1 span { color: var(--primary); }
+        .login-box input { font-size: 24px; padding: 15px; width: 220px; text-align: center; border: 2px solid var(--light); border-radius: 12px; margin-bottom: 20px; letter-spacing: 8px; outline: none; }
+        .login-box button { font-size: 18px; padding: 15px 40px; background: var(--dark); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; }
+        
+        .pos-container, .admin-container { display: none; width: 100%; height: 100%; }
+        .tables-sidebar, .admin-sidebar { width: 300px; background: var(--sidebar-bg); padding: 20px; display: flex; flex-direction: column; color: white; }
+        .brand-title { color: var(--text-light); font-size: 24px; margin: 0 0 15px 0; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .brand-title span { color: var(--primary); }
+        .zone-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+        .zone-btn { flex: 1 1 45%; padding: 10px; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+        .zone-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        .table-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; overflow-y: auto; padding-right: 5px; }
+        .table-btn { padding: 15px 10px; border: 2px solid transparent; border-radius: 12px; font-size: 15px; font-weight: bold; cursor: pointer; color: white; display: flex; flex-direction: column; align-items: center; text-align: center;}
+        .table-btn.empty { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .table-btn.occupied { background: var(--danger); color: white; }
+        .table-btn.active { border: 2px solid var(--primary); transform: translateY(-2px); }
+        
+        .order-section, .admin-content { flex: 1; display: flex; flex-direction: column; padding: 20px; background: var(--bg-color); position: relative; overflow: hidden; min-height: 0; }
+        .empty-order-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); display: flex; align-items: center; justify-content: center; z-index: 50; flex-direction: column; color: #64748b; }
+        
+        .admin-nav-btn { background: transparent; border: none; color: #cbd5e1; padding: 15px; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 8px; margin-bottom: 5px; transition: 0.3s; }
+        .admin-nav-btn:hover, .admin-nav-btn.active { background: var(--primary); color: white; }
+        .admin-panel-section { display: none; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .admin-panel-section.active { display: block; }
+        
+        .dashboard-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
+        .stat-card h3 { margin: 0 0 10px 0; color: #64748b; font-size: 16px; }
+        .stat-card .value { font-size: 32px; font-weight: bold; color: var(--dark); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--light); font-size: 14px; }
+        th { background: #f8fafc; color: #64748b; }
+
+        .order-main-layout { display: grid; grid-template-columns: 420px minmax(420px, 1fr); gap: 18px; min-height: 0; align-items: stretch; }
+        .order-left-panel, .order-right-panel { display: flex; flex-direction: column; gap: 15px; min-height: 0; overflow: hidden; }
+        .order-left-panel { background: white; border-radius: 18px; padding: 18px; box-shadow: 0 15px 40px rgba(15,23,42,0.06); min-height: 0; }
+        .order-right-panel { background: white; border-radius: 18px; padding: 18px; box-shadow: 0 15px 40px rgba(15,23,42,0.06); min-height: 0; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+        .order-header .btn-back, .order-header .btn-move { padding: 12px 16px; border: 1px solid var(--light); background: white; border-radius: 12px; cursor: pointer; color: var(--dark); font-weight: 700; }
+        .order-header h2 { margin: 0; font-size: 22px; color: var(--dark); }
+        .order-search { display: flex; gap: 10px; margin-bottom: 10px; }
+        .order-search input { flex: 1; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--light); outline: none; font-size: 14px; }
+        .order-search button { padding: 12px 18px; background: var(--primary); color: white; border: none; border-radius: 14px; cursor: pointer; font-weight: 700; }
+        .menu-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; }
+        .category-tabs { display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; margin-bottom: 12px; min-height: 52px; position: sticky; top: 0; background: white; z-index: 2; }
+        .category-tabs::-webkit-scrollbar { height: 8px; }
+        .category-tabs::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.5); border-radius: 9999px; }
+        .cat-btn { flex: 0 0 auto; padding: 10px 18px; background: #f8fafc; border: 1px solid var(--light); border-radius: 14px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--dark); white-space: nowrap; text-align: center; }
+        .cat-btn.active { background: var(--dark); color: white; border-color: var(--dark); }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; min-height: 0; padding-bottom: 18px; }
+        .order-right-panel { display: flex; flex-direction: column; gap: 15px; min-height: 0; overflow: hidden; }
+        .order-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; background: #f8fafc; border-radius: 16px; padding: 16px; }
+        .table-note-box { display: flex; gap: 10px; margin-bottom: 15px; flex-shrink: 0; }
+        .action-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+        .menu-item-btn { min-width: 150px; min-height: 110px; padding: 12px; background: #f8fafc; border: 1px solid var(--light); border-radius: 14px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--dark); text-align: center; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; transition: transform 0.15s ease; }
+        .menu-item-btn:hover { transform: translateY(-2px); }
+        .menu-item-btn span { display: block; color: var(--primary); font-size: 14px; font-weight: 800; margin-top: 8px; white-space: normal; overflow: hidden; text-overflow: ellipsis; }
+        .menu-item-btn.out-of-stock { opacity: 0.45; cursor: not-allowed; filter: grayscale(100%); }
+        .menu-item-btn.out-of-stock span { color: var(--danger); font-size: 12px; }
+        .order-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; background: #f8fafc; border-radius: 16px; padding: 16px; }
+        .order-list-inner { display: flex; flex-direction: column; gap: 10px; }
+        .order-item { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 14px 12px; background: white; border-radius: 12px; box-shadow: 0 5px 15px rgba(15,23,42,0.05); font-size: 14px; font-weight: 700; }
+        .order-item .item-name { color: var(--dark); }
+        .order-item .item-price { color: var(--primary); font-weight: 800; }
+        .order-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .delete-btn { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .gift-btn { background: rgba(59, 130, 246, 0.1); color: var(--blue); border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        
+        .table-note-box { display: flex; gap: 10px; margin-bottom: 15px; }
+        .table-note-box input { flex: 1; padding: 12px; border: 1px solid var(--light); border-radius: 8px; font-size: 14px; outline: none; }
+        .table-note-box button { background: var(--dark); color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+        .action-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; flex-wrap: wrap; gap: 10px;}
+        .action-btns button { padding: 12px 20px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-left: 5px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;}
+        .modal-box { background: var(--bg-color); width: 100%; max-width: 500px; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+        .modal-header { background: var(--dark); color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { margin: 0; font-size: 18px; }
+        .modal-close-btn { background: var(--danger); color: white; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .partial-pay-content { padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .partial-pay-content label { font-weight: bold; color: var(--dark); }
+        .partial-pay-content input { padding: 15px; font-size: 18px; border: 2px solid var(--light); border-radius: 8px; outline: none; }
+        .partial-pay-content .summary { font-size: 18px; font-weight: bold; padding: 15px; background: #f8fafc; border-radius: 8px; text-align: center; }
+
+        .add-product-card { background: #f8fafc; border: 2px dashed #cbd5e1; padding: 20px; border-radius: 12px; margin-bottom: 25px; }
+        .add-product-card h3 { margin-top: 0; color: var(--dark); font-size: 16px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px; }
+        .form-grid input, .form-grid select { padding: 12px; border-radius: 8px; border: 1px solid var(--light); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
+
+        @media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 80mm; font-family: monospace; font-size: 12px; display: block !important; padding: 10px; } }
+        #receipt-print-area { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="login-screen" id="loginScreen">
+        <div class="login-box">
+            <h1>Sosyal <span>Cafe</span></h1>
+            <input type="password" id="pinInput" placeholder="****" maxlength="4" onkeypress="if(event.key === 'Enter') checkLogin()">
+            <button onclick="checkLogin()">Giriş Yap</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="moveTableModal"><div class="modal-box"><div class="modal-header"><h3>🔄 Hedef Masayı Seçin</h3><button class="modal-close-btn" onclick="closeMoveModal()">İptal</button></div><div style="padding: 15px; background: var(--sidebar-bg); display: flex; gap: 8px; overflow-x: auto;" id="moveZoneTabs"></div><div style="padding: 20px; overflow-y: auto; flex: 1; background: var(--sidebar-bg);" id="moveTablesGrid" class="table-grid"></div></div></div>
+    <div class="modal-overlay" id="partialPayModal"><div class="modal-box"><div class="modal-header"><h3>🧾 Parçalı Ödeme</h3><button class="modal-close-btn" onclick="closePartialPayModal()">İptal</button></div><div class="partial-pay-content"><div class="summary">Hesap Toplamı: <span id="partialTotalAmt" style="color:var(--danger)">0</span> TL</div><label>Nakit Alınan Tutar (TL):</label><input type="number" id="partialCashInput" placeholder="Örn: 400" onkeyup="calcPartial()"><div class="summary" style="background: rgba(59, 130, 246, 0.1);">Kredi Kartından Çekilecek: <span id="partialCCAmt" style="color:var(--blue)">0</span> TL</div><button style="background:var(--success); color:white; border:none; padding:15px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;" onclick="completePartialPay()">💳 Ödemeyi Tamamla</button></div></div></div>
+
+    <div class="admin-container" id="adminContainer">
+        <div class="admin-sidebar">
+            <h2>👑 Patron Paneli</h2>
+            <button class="admin-nav-btn active" onclick="switchAdminTab('raporlar', event)">📊 Analiz ve Raporlar</button>
+            <button class="admin-nav-btn" onclick="switchAdminTab('menu', event)">📋 Menü Yönetimi</button>
+            <button class="admin-nav-btn" onclick="switchAdminTab('stok', event)">📦 Stok & Envanter</button>
+            <button class="admin-nav-btn" onclick="switchAdminTab('masalar', event)">🪑 Masa Düzeni</button>
+            <button class="admin-nav-btn" onclick="switchAdminTab('personel', event)">👥 Personel Şifreleri</button>
+            <div style="margin-top: auto;"><button class="admin-nav-btn" style="width:100%; background:var(--danger); text-align:center;" onclick="logout()">Çıkış Yap</button>
+                <div style="text-align: center; margin-top: 15px; font-size: 10px; color: #94a3b8;">Hakan Gülmez tarafından geliştirilmiştir.</div>
+            </div>
+        </div>
+        <div class="admin-content">
+            <div class="admin-panel-section active" id="tab-raporlar">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid var(--light); padding-bottom: 10px; flex-wrap: wrap; gap:10px;">
+                    <h2 style="margin: 0;">📊 Satış Analizleri</h2>
+                    <div style="display:flex; gap:10px;">
+                        <button style="background:var(--success); color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="exportToCSV()">📥 Excel (CSV) İndir</button>
+                        <select id="reportFilter" onchange="loadAdminReports()" style="padding: 10px; border-radius: 8px; border: 1px solid var(--light); font-size: 15px; font-weight: bold;"><option value="daily">Bugün</option><option value="weekly">Bu Hafta</option><option value="monthly">Bu Ay</option><option value="yearly">Bu Yıl</option><option value="all">Tüm Zamanlar</option></select>
+                    </div>
+                </div>
+                <div class="dashboard-cards">
+                    <div class="stat-card"><h3>Toplam Ciro</h3><div class="value" id="dashTotalCiro">0 TL</div></div>
+                    <div class="stat-card" style="border-color: var(--success);"><h3>Nakit</h3><div class="value" id="dashNakit">0 TL</div></div>
+                    <div class="stat-card" style="border-color: var(--blue);"><h3>Kredi Kartı</h3><div class="value" id="dashKredi">0 TL</div></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div><h3 style="color: var(--dark);">🔥 En Çok Satanlar</h3><div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Ürün Adı</th><th>Adet</th><th>Kazanç</th></tr></thead><tbody id="reportsProductsTableBody"></tbody></table></div></div>
+                    <div><h3 style="color: var(--dark);">🎁 İkram & İptaller</h3><div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Ürün Adı</th><th>Tarih</th><th>Masa</th></tr></thead><tbody id="reportsGiftsTableBody"></tbody></table></div></div>
+                </div>
+                <h3 style="color: var(--dark);">Detaylı Adisyon Dökümü</h3>
+                <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Tarih / Saat</th><th>Masa</th><th>Ödeme Tipi</th><th>Tutar</th></tr></thead><tbody id="reportsTableBody"></tbody></table></div>
+            </div>
+
+            <div class="admin-panel-section" id="tab-menu">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">📋 Menü Yönetimi</h2>
+                    <button onclick="forceLoadMenu()" style="background:var(--danger); color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 10px rgba(239,68,68,0.3);">🆘 Menü Boşsa Buraya Tıkla (Onar)</button>
+                </div>
+                
+                <div class="add-product-card">
+                    <h3 id="formTitle">➕ Yeni Ürün Ekle / Düzenle</h3>
+                    <input type="hidden" id="editProdKey">
+                    <div class="form-grid">
+                        <input type="text" id="newProdName" placeholder="Ürün Adı">
+                        <input type="number" id="newProdPrice" placeholder="Fiyat TL">
+                        <select id="newProdCatSelect" onchange="checkCustomCategory(this)">
+                            <option value="Sıcak İçecekler">Sıcak İçecekler</option><option value="Soğuk İçecekler">Soğuk İçecekler</option>
+                            <option value="Taze Soğuk İçecekler">Taze Soğuk İçecekler</option><option value="Soğuk Kahveler">Soğuk Kahveler</option>
+                            <option value="Buzlular (Frozen)">Buzlular (Frozen)</option><option value="Kokteyller">Kokteyller</option>
+                            <option value="Tatlılar">Tatlılar</option><option value="Gözleme">Gözleme</option>
+                            <option value="Tostlar">Tostlar</option><option value="Burgerler">Burgerler</option>
+                            <option value="Beyaz Et">Beyaz Et</option><option value="Kırmızı Et">Kırmızı Et</option>
+                            <option value="Aperatifler">Aperatifler</option><option value="Nargile">Nargile</option>
+                            <option value="YENI">+ Yeni Kategori Ekle...</option>
+                        </select>
+                        <input type="text" id="customCatInput" placeholder="Yeni Kategori Adı" style="display:none;">
+                    </div>
+                    <div class="form-grid" style="margin-top: 10px;">
+                        <input type="text" id="newProdDesc" placeholder="Açıklama / İçindekiler">
+                        <input type="text" id="newProdImg" placeholder="Fotoğraf URL Linki">
+                    </div>
+                    <div style="margin-top: 15px; display:flex; gap:10px;">
+                        <button id="saveBtn" style="background:var(--success); color:white; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="saveProduct()">➕ Ürünü Kaydet</button>
+                        <button id="cancelBtn" style="display:none; background:var(--danger); color:white; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="cancelEdit()">İptal</button>
+                    </div>
+                </div>
+                <table><thead><tr><th>Ürün Adı & Açıklama</th><th>Fiyat</th><th>Kategori</th><th>Görsel</th><th>İşlem</th></tr></thead><tbody id="adminMenuTable"></tbody></table>
+            </div>
+
+            <div class="admin-panel-section" id="tab-stok">
+                <h2>📦 Stok ve Envanter Yönetimi</h2>
+                <div style="padding:15px; background:var(--bg-color); border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+                    <select id="stockItemSelect" style="flex:2; padding:10px; border-radius:5px; border:1px solid #ccc;"><option value="">-- Ürün Seçin --</option></select>
+                    <input type="number" id="stockAddQty" placeholder="Eklenecek Adet" style="flex:1; padding:10px; border-radius:5px; border:1px solid #ccc;">
+                    <button style="background:var(--success); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;" onclick="addStock()">+ Stok Ekle</button>
+                </div>
+                <table><thead><tr><th>Ürün Adı</th><th>Kalan Stok</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="adminStockTable"></tbody></table>
+            </div>
+
+            <div class="admin-panel-section" id="tab-masalar">
+                <h2>🪑 Masa Düzeni ve Ekleme</h2>
+                <div style="display:flex; gap:20px; align-items:flex-end;">
+                    <div><label>Bölüm Seç:</label><br><select id="adminZoneSelect" style="padding:10px; border-radius:5px; border:1px solid #ccc;"><option value="Salon">Salon</option><option value="Okey">Okey</option><option value="Orta Salon">Orta Salon</option><option value="Bahçe">Bahçe</option></select></div>
+                    <div><label>Yeni Masa Sayısı:</label><br><input type="number" id="adminTableCount" style="padding:10px; border-radius:5px; border:1px solid #ccc; width:100px;"></div>
+                    <button style="padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;" onclick="updateZoneConfig()">Güncelle</button>
+                </div>
+                <ul id="currentZoneStatus" style="margin-top:20px; background:#f8fafc; padding:15px; border-radius:8px; list-style:none;"></ul>
+            </div>
+
+            <div class="admin-panel-section" id="tab-personel">
+                <h2>👥 Garson ve Personel Şifreleri</h2>
+                <table><thead><tr><th>Personel / Yetki</th><th>Güncel PIN</th><th>İşlem</th></tr></thead><tbody id="staffTableBody"></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <div class="pos-container" id="posContainer">
+        <div class="tables-sidebar">
+            <h1 class="brand-title">☕ Sosyal <span>Cafe</span></h1>
+            <div class="zone-tabs" id="zoneTabsContainer"></div>
+            <div class="table-grid" id="tablesContainer"></div>
+            <button style="margin-top:auto; padding:15px; background:var(--danger); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="logout()">Sistemden Çıkış Yap</button>
+        </div>
+
+        <div class="order-section">
+            <div class="empty-order-screen" id="emptyOrderScreen"><h2>Sipariş girmek için sol taraftan bir masa seçin.</h2></div>
+            <div class="order-main-layout">
+                <div class="order-left-panel">
+                    <div class="order-header">
+                        <button class="btn-back" onclick="closeOrderScreen()">🔙 Masalara Dön</button>
+                        <h2 id="activeTableTitle">Masa Seçilmedi</h2>
+                        <button class="btn-move" onclick="openMoveModal()">🔄 Masa Taşı</button>
+                    </div>
+                    <div class="order-search">
+                        <input type="search" id="searchInput" placeholder="Ürün Ara" oninput="searchMenu()">
+                        <button onclick="searchMenu()">Ara</button>
+                    </div>
+                    <div class="menu-panel">
+                        <div class="category-tabs" id="posCategories"></div>
+                        <div class="menu-grid" id="menuContainer"></div>
+                    </div>
+                </div>
+                <div class="order-right-panel">
+                    <div class="order-list" id="orderList"></div>
+                    <div class="table-note-box">
+                        <input type="text" id="tableNoteInput" placeholder="Masaya not ekle (Örn: Nargile bol buzlu, çay açık)">
+                        <button onclick="saveTableNote()">Notu Kaydet</button>
+                    </div>
+                    <div class="action-bar">
+                        <div class="total-price" style="font-size:24px; font-weight:bold;">Toplam: <span id="totalAmount">0</span> TL</div>
+                        <div class="action-btns" style="display:flex; flex-wrap:wrap; justify-content:flex-end;">
+                            <button style="background: #f1f5f9; color: var(--dark);" onclick="printBill()">🖨️ Fiş</button>
+                            <button style="background: var(--purple); color: white;" onclick="openPartialPayModal()">💳 Parçalı Öde</button>
+                            <button style="background: var(--success); color: white;" onclick="payBill('Nakit')">💵 Nakit</button>
+                            <button style="background: var(--blue); color: white;" onclick="payBill('Kredi Kartı')">💳 K. Kartı</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="receipt-print-area">
+        <h2 style="text-align: center; margin: 0; font-size: 18px;">SOSYAL CAFE</h2>
+        <div id="r-date" style="text-align: center; margin-bottom: 10px; font-size: 12px;"></div>
+        <div id="r-table" style="font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;"></div>
+        <div id="r-items"></div>
+        <div id="r-note" style="font-style: italic; margin-top: 10px; font-size: 11px;"></div>
+        <div id="r-total" style="font-weight: bold; text-align: right; border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; font-size: 14px;"></div>
+    </div>
+
+    <script>
+        function escapeHTML(str) { return str ? str.toString().replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : ''; }
+
+        const firebaseConfig = { apiKey: "AIzaSyDaJjJ0a_yF9yHgTxmLr6nnX99UTWnn8-0", authDomain: "cafe-adisyon-2bcf0.firebaseapp.com", databaseURL: "https://cafe-adisyon-2bcf0-default-rtdb.firebaseio.com", projectId: "cafe-adisyon-2bcf0" };
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.database();
+
+        let globalMenuData = {}; let globalStockData = {}; let currentUserRole = null;
+        let activeZone = 'Salon', activeTable = null; let globalTablesData = {};
+        let zoneConfigs = { 'Salon': 20, 'Okey': 15, 'Orta Salon': 10, 'Bahçe': 25 };
+        const menuCategories = [
+            "Karışım Nargile Tütünü",
+            "Nargile",
+            "Sıcak İçecekler",
+            "Soğuk İçecekler",
+            "Taze Soğuk İçecekler",
+            "Soğuk Kahveler",
+            "Buzlular",
+            "Kokteyller",
+            "Tatlılar",
+            "Gözleme",
+            "Tostlar",
+            "Burgerler",
+            "Beyaz Et",
+            "Kırmızı Et",
+            "Aperatifler"
+        ];
+        let currentCategory = menuCategories[0]; let moveTargetZone = 'Salon'; let currentReportData = [];
+
+        const fullMenu = {
+            m1: { name: "Lady Killer + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m2: { name: "Dejavu + Çilek + Dondurma", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m3: { name: "Yaban Mersini + Vivident + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m4: { name: "Üzüm + Damla Sakızı + Nane", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m5: { name: "Karpuz + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m6: { name: "Redbull + Portakal + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m7: { name: "Cola + Limon + Nane", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m8: { name: "Pişmiş Şeftali + Dondurma + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m9: { name: "Marbella Merlin Mor + Yaban Mersini", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m10: { name: "Moskow + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m11: { name: "Elma + Damla Sakızı + Nane", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m12: { name: "Law66 + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m13: { name: "Daimant + Portakal + Vivident", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m14: { name: "Çilek + Karpuz + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m15: { name: "Sultan Mix (Üzüm + Damla Sakızı + Ice)", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m16: { name: "Purple Cloud (Merlin Mor + Yaban Mersini + Vivident)", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m17: { name: "Energy Bomb (Redbull + Portakal + Ice Buz)", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m18: { name: "Strawberry Dessert (Çilek + Dondurma + Dejavu)", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m19: { name: "Lady Killer + Limon + Nane", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
+            m20: { name: "Adalya", price: 400, category: "Nargile", desc: "", image: "" },
+            m21: { name: "Al Fakher", price: 400, category: "Nargile", desc: "", image: "" },
+            m22: { name: "Jibiar", price: 400, category: "Nargile", desc: "", image: "" },
+            m23: { name: "Nakla (Nakla Capicino)", price: 400, category: "Nargile", desc: "", image: "" },
+            m24: { name: "Kullan At Marpuç", price: 75, category: "Nargile", desc: "", image: "" },
+            m25: { name: "Buzlu Marpuç", price: 75, category: "Nargile", desc: "", image: "" },
+            m26: { name: "Kafa Değişimi", price: 250, category: "Nargile", desc: "", image: "" },
+            m27: { name: "Anason", price: 400, category: "Nargile", desc: "", image: "" },
+            m28: { name: "Türk Kahvesi", price: 140, category: "Sıcak İçecekler", desc: "Özel kavrulmuş taze çekirdeklerden.", image: "" },
+            m29: { name: "Dibek Kahvesi", price: 150, category: "Sıcak İçecekler", desc: "Özel dibek taşında dövülmüş.", image: "" },
+            m30: { name: "Damla Sakızlı Türk Kahvesi", price: 150, category: "Sıcak İçecekler", desc: "Damla sakızı aromalı.", image: "" },
+            m31: { name: "Espresso", price: 140, category: "Sıcak İçecekler", desc: "Yoğun kahve.", image: "" },
+            m32: { name: "Americano", price: 160, category: "Sıcak İçecekler", desc: "Sıcak su ile espresso.", image: "" },
+            m33: { name: "Caffe Latte", price: 180, category: "Sıcak İçecekler", desc: "Espresso üzerine süt köpüğü.", image: "" },
+            m34: { name: "Cappuccino", price: 180, category: "Sıcak İçecekler", desc: "Bol köpüklü espresso ve süt.", image: "" },
+            m35: { name: "Caffe Mocha", price: 200, category: "Sıcak İçecekler", desc: "Çikolata sos, espresso ve sıcak süt.", image: "" },
+            m36: { name: "White Mocha", price: 200, category: "Sıcak İçecekler", desc: "Beyaz çikolata soslu.", image: "" },
+            m37: { name: "Sütlü Nescafe", price: 160, category: "Sıcak İçecekler", desc: "", image: "" },
+            m38: { name: "Sade Nescafe", price: 140, category: "Sıcak İçecekler", desc: "", image: "" },
+            m39: { name: "Sahlep", price: 160, category: "Sıcak İçecekler", desc: "Tarçın ile.", image: "" },
+            m40: { name: "Sıcak Çikolata", price: 170, category: "Sıcak İçecekler", desc: "Yoğun kıvamlı.", image: "" },
+            m41: { name: "Beyaz Çikolata", price: 170, category: "Sıcak İçecekler", desc: "Sıcak beyaz çikolata.", image: "" },
+            m42: { name: "Demleme Çay", price: 140, category: "Sıcak İçecekler", desc: "Taze dökme çay.", image: "" },
+            m43: { name: "Çay", price: 40, category: "Sıcak İçecekler", desc: "İnce belli bardakta.", image: "" },
+            m44: { name: "Menengiç Kahvesi", price: 150, category: "Sıcak İçecekler", desc: "Sütle hazırlanan menengiç.", image: "" },
+            m45: { name: "Duble Türk Kahvesi", price: 280, category: "Sıcak İçecekler", desc: "Duble fincanda.", image: "" },
+            m46: { name: "Meyveli Çay", price: 65, category: "Sıcak İçecekler", desc: "", image: "" },
+            m47: { name: "Fincan Çay", price: 65, category: "Sıcak İçecekler", desc: "Büyük fincanda.", image: "" },
+            m48: { name: "Sprite", price: 140, category: "Soğuk İçecekler", desc: "Kutu 330ml", image: "" },
+            m49: { name: "Coca Cola", price: 140, category: "Soğuk İçecekler", desc: "Kutu 330ml", image: "" },
+            m50: { name: "Fanta", price: 140, category: "Soğuk İçecekler", desc: "Kutu 330ml", image: "" },
+            m51: { name: "İce Tea", price: 120, category: "Soğuk İçecekler", desc: "Şeftali / Limon / Mango", image: "" },
+            m52: { name: "Redbull", price: 200, category: "Soğuk İçecekler", desc: "Enerji içeceği", image: "" },
+            m53: { name: "Meyveli Soda", price: 100, category: "Soğuk İçecekler", desc: "Limon, elma vb.", image: "" },
+            m54: { name: "Sade Soda", price: 90, category: "Soğuk İçecekler", desc: "Cam şişe", image: "" },
+            m55: { name: "Churchill", price: 160, category: "Soğuk İçecekler", desc: "Limon, tuz ve soda.", image: "" },
+            m56: { name: "Vişne Meyve Suyu", price: 140, category: "Soğuk İçecekler", desc: "", image: "" },
+            m57: { name: "Şeftali Meyve Suyu", price: 140, category: "Soğuk İçecekler", desc: "", image: "" },
+            m58: { name: "Su", price: 40, category: "Soğuk İçecekler", desc: "0.5L Pet Su", image: "" },
+            m59: { name: "Milkshake", price: 200, category: "Soğuk İçecekler", desc: "Çilek / Çikolata / Vanilya", image: "" },
+            m60: { name: "Fındıklı Redbull", price: 250, category: "Soğuk İçecekler", desc: "", image: "" },
+            m61: { name: "Fındıklı Meyve Suyu", price: 190, category: "Soğuk İçecekler", desc: "", image: "" },
+            m62: { name: "Limonata", price: 150, category: "Soğuk İçecekler", desc: "Ev yapımı taze limonata.", image: "" },
+            m63: { name: "Ayran", price: 100, category: "Soğuk İçecekler", desc: "", image: "" },
+            m64: { name: "Limonata Meyveli", price: 175, category: "Soğuk İçecekler", desc: "Çilek / Nane vb.", image: "" },
+            m65: { name: "Sıkma Portakal Suyu", price: 170, category: "Taze Soğuk İçecekler", desc: "Taze sıkılmış.", image: "" },
+            m66: { name: "Sıkma Nar Suyu", price: 165, category: "Taze Soğuk İçecekler", desc: "Taze sıkılmış.", image: "" },
+            m67: { name: "Atom", price: 180, category: "Taze Soğuk İçecekler", desc: "Muz, bal, ceviz, süt.", image: "" },
+            m68: { name: "İce Latte", price: 180, category: "Soğuk Kahveler", desc: "Soğuk süt ve espresso.", image: "" },
+            m69: { name: "İce Mocha", price: 195, category: "Soğuk Kahveler", desc: "Buzlu mocha.", image: "" },
+            m70: { name: "İce White Mocha", price: 195, category: "Soğuk Kahveler", desc: "Buzlu beyaz çikolatalı kahve.", image: "" },
+            m71: { name: "İce Americano", price: 160, category: "Soğuk Kahveler", desc: "Buzlu espresso.", image: "" },
+            m72: { name: "Soğuk Çikolata", price: 180, category: "Soğuk Kahveler", desc: "", image: "" },
+            m73: { name: "Çilek Frozen", price: 200, category: "Buzlular", desc: "Buz ve taze çilek.", image: "" },
+            m74: { name: "Mango Frozen", price: 200, category: "Buzlular", desc: "Buz ve taze mango.", image: "" },
+            m75: { name: "Sosyal Special Frozen", price: 220, category: "Buzlular", desc: "Mekana özel tarif.", image: "" },
+            m76: { name: "Blue Logon", price: 210, category: "Kokteyller", desc: "Çilekli, narlı veya naneli.", image: "" },
+            m77: { name: "Çilekli Mojito", price: 210, category: "Kokteyller", desc: "Çilek, limon, nane, soda.", image: "" },
+            m78: { name: "Mango Fizz", price: 210, category: "Kokteyller", desc: "Mango, soda, limon suyu.", image: "" },
+            m79: { name: "Tropical Green", price: 210, category: "Kokteyller", desc: "Kivi, mango, soda.", image: "" },
+            m80: { name: "Kiwi Mint Cooler", price: 210, category: "Kokteyller", desc: "Kivi, nane, soda, limon.", image: "" },
+            m81: { name: "Strawberry Mango Dream", price: 210, category: "Kokteyller", desc: "Çilek, mango, Sprite.", image: "" },
+            m82: { name: "Peach Pomegranate Fizz", price: 210, category: "Kokteyller", desc: "Şeftali, grenadine, soda.", image: "" },
+            m83: { name: "Mango Şeftali Tropik", price: 210, category: "Kokteyller", desc: "Kivi, nane, soda.", image: "" },
+            m84: { name: "Kiwi Fresh", price: 210, category: "Kokteyller", desc: "Kivi, limon, soda, nane.", image: "" },
+            m85: { name: "Peach Breeze", price: 210, category: "Kokteyller", desc: "Şeftali, hibiskus ve Sprite.", image: "" },
+            m86: { name: "Nar Sparkle", price: 210, category: "Kokteyller", desc: "Nar, limon suyu, soda.", image: "" },
+            m87: { name: "Strawberry Kiwi", price: 210, category: "Kokteyller", desc: "Çilek, kivi, soda.", image: "" },
+            m88: { name: "Pink Dream", price: 210, category: "Kokteyller", desc: "Cosmopolitan mix, çilek, Sprite.", image: "" },
+            m89: { name: "Sunset", price: 210, category: "Kokteyller", desc: "Şeftali, mango, soda, portakal.", image: "" },
+            m90: { name: "Nar Nane Cooler", price: 210, category: "Kokteyller", desc: "Nar, nane, soda, limon.", image: "" },
+            m91: { name: "Strawberry Mojito", price: 210, category: "Kokteyller", desc: "Çilek, nane, limon, soda.", image: "" },
+            m92: { name: "Mango Paradise", price: 210, category: "Kokteyller", desc: "Mango, hindistancevizi, limon, Sprite.", image: "" },
+            m93: { name: "Green Apple Fresh", price: 210, category: "Kokteyller", desc: "Yeşil elma, nane, soda.", image: "" },
+            m94: { name: "Ruby Sunset", price: 210, category: "Kokteyller", desc: "Nar, çilek, soda.", image: "" },
+            m95: { name: "Tropical Island", price: 210, category: "Kokteyller", desc: "Mango, hindistancevizi, kivi, Sprite.", image: "" },
+            m96: { name: "Meriçli Special", price: 210, category: "Kokteyller", desc: "Mango, Blue Curaçao, hindistancevizi, Sprite.", image: "" },
+            m97: { name: "Sufle", price: 350, category: "Tatlılar", desc: "1 top dondurma ile.", image: "" },
+            m98: { name: "Ballı Fıstıklı", price: 350, category: "Tatlılar", desc: "Antep fıstığı ve bal.", image: "" },
+            m99: { name: "Fıstıklı Volkano", price: 300, category: "Tatlılar", desc: "İçi akışkan fıstık kremalı sıcak kek.", image: "" },
+            m100: { name: "Çikolata Dünyası", price: 300, category: "Tatlılar", desc: "Çikolata severlere.", image: "" },
+            m101: { name: "Sütlaç", price: 200, category: "Tatlılar", desc: "Fırınlanmış anne sütlacı.", image: "" },
+            m102: { name: "Fındıklı Sütlaç", price: 250, category: "Tatlılar", desc: "Fındıklı sütlaç.", image: "" },
+            m103: { name: "Dondurmalı Sütlaç", price: 250, category: "Tatlılar", desc: "Dondurma ile servis.", image: "" },
+            m104: { name: "Kavurma Kaşar Gözleme", price: 290, category: "Gözleme", desc: "Domates ve salata ile.", image: "" },
+            m105: { name: "Sucuk Kaşar Gözleme", price: 250, category: "Gözleme", desc: "Domates ve salata ile.", image: "" },
+            m106: { name: "Patates Kaşar Gözleme", price: 235, category: "Gözleme", desc: "Domates ve salata ile.", image: "" },
+            m107: { name: "Kaşarlı Gözleme", price: 220, category: "Gözleme", desc: "Domates ve salata ile.", image: "" },
+            m108: { name: "Kavurma Kaşar Tost", price: 290, category: "Tostlar", desc: "Bol malzemeli.", image: "" },
+            m109: { name: "Kaşarlı Tost", price: 220, category: "Tostlar", desc: "Eriyen kaşar ile.", image: "" },
+            m110: { name: "Karışık Tost", price: 250, category: "Tostlar", desc: "Sucuk ve kaşar.", image: "" },
+            m111: { name: "Çift Kaşarlı Tost", price: 250, category: "Tostlar", desc: "Ekstra kaşarlı.", image: "" },
+            m112: { name: "3 Çeyrek Kavurma Kaşar Tost", price: 435, category: "Tostlar", desc: "Doyurucu porsiyon.", image: "" },
+            m113: { name: "3 Çeyrek Kaşarlı Tost", price: 330, category: "Tostlar", desc: "Doyurucu porsiyon.", image: "" },
+            m114: { name: "3 Çeyrek Karışık Tost", price: 375, category: "Tostlar", desc: "Doyurucu porsiyon.", image: "" },
+            m115: { name: "Hamburger", price: 420, category: "Burgerler", desc: "Dana eti, turşu ve patates.", image: "" },
+            m116: { name: "Cheese Burger", price: 450, category: "Burgerler", desc: "Dana eti, cheddar ve patates.", image: "" },
+            m117: { name: "Chicken Burger", price: 400, category: "Burgerler", desc: "Tavuk fileto ve patates.", image: "" },
+            m118: { name: "Sosyal Combo Burger", price: 550, category: "Burgerler", desc: "Çift kat köfte.", image: "" },
+            m119: { name: "Sucuk Burger", price: 400, category: "Burgerler", desc: "Izgara sucuk ve patates.", image: "" },
+            m120: { name: "BBQ Soslu Tavuk", price: 420, category: "Beyaz Et", desc: "Barbekü soslu ve garnitür.", image: "" },
+            m121: { name: "Soya Soslu Tavuk", price: 420, category: "Beyaz Et", desc: "Soya soslu.", image: "" },
+            m122: { name: "Köri Soslu Tavuk", price: 420, category: "Beyaz Et", desc: "Krema ve köri soslu.", image: "" },
+            m123: { name: "Kremalı Mantarlı Tavuk", price: 420, category: "Beyaz Et", desc: "Taze mantar ve krema.", image: "" },
+            m124: { name: "Meksikan Soslu Tavuk", price: 420, category: "Beyaz Et", desc: "Acı meksika fasulyeli.", image: "" },
+            m125: { name: "Tavuk Pirzola", price: 450, category: "Beyaz Et", desc: "Izgara tavuk pirzola, pilav.", image: "" },
+            m126: { name: "Tavuk Pirzola 1.5", price: 675, category: "Beyaz Et", desc: "Doyurucu porsiyon.", image: "" },
+            m127: { name: "Izgara Köfte", price: 500, category: "Kırmızı Et", desc: "Ev yapımı köfte, pilav.", image: "" },
+            m128: { name: "Sucuk Porsiyon", price: 480, category: "Kırmızı Et", desc: "Izgara sucuk.", image: "" },
+            m129: { name: "1.5 Porsiyon Köfte", price: 750, category: "Kırmızı Et", desc: "Doyurucu köfte porsiyonu.", image: "" },
+            m130: { name: "Patates Tava", price: 220, category: "Aperatifler", desc: "Çıtır patates.", image: "" },
+            m131: { name: "Sosyal Combo Basket", price: 400, category: "Aperatifler", desc: "Sosis, soğan halkası, sigara böreği ve patates.", image: "" },
+            m132: { name: "Sosis Tabağı", price: 260, category: "Aperatifler", desc: "Sosis ve patates.", image: "" },
+            m133: { name: "Köfte Ekmek", price: 250, category: "Aperatifler", desc: "Yarım ekmek köfte.", image: "" },
+            m134: { name: "3 Çeyrek Köfte Ekmek", price: 375, category: "Aperatifler", desc: "Büyük boy köfte ekmek.", image: "" }
+        };
+
+        function checkLogin() {
+            const pin = document.getElementById('pinInput').value;
+            db.ref('ayarlar_v7/sifreler').once('value').then(snap => {
+                const sifreler = snap.val() || { garson: "1453", admin: "2026" };
+                
+                if (pin === sifreler.garson) {
+                    currentUserRole = 'garson'; document.getElementById('loginScreen').style.display = 'none'; document.getElementById('posContainer').style.display = 'flex'; initPOS();
+                } else if (pin === sifreler.admin) {
+                    currentUserRole = 'admin'; document.getElementById('loginScreen').style.display = 'none'; document.getElementById('adminContainer').style.display = 'flex'; switchAdminTab('raporlar');
+                } else { alert("Hatalı PIN!"); document.getElementById('pinInput').value = ""; }
+            }).catch(err => alert("Bağlantı hatası: Sisteme erişilemiyor. Lütfen internetinizi veya Firebase kurallarını kontrol edin."));
+        }
+
+        function logout() { currentUserRole = null; document.getElementById('pinInput').value = ""; document.getElementById('posContainer').style.display = 'none'; document.getElementById('adminContainer').style.display = 'none'; document.getElementById('loginScreen').style.display = 'flex'; }
+
+        window.onload = () => { initDatabaseListen(); };
+
+        function initDatabaseListen() {
+            db.ref('ayarlar_v7').on('value', snap => {
+                const ayarlar = snap.val() || {};
+                if(ayarlar.masaSayilari) zoneConfigs = ayarlar.masaSayilari;
+                if(currentUserRole === 'admin' && document.getElementById('tab-personel').classList.contains('active')) renderStaffPasswords(ayarlar.sifreler);
+                if(currentUserRole === 'admin' && document.getElementById('tab-masalar').classList.contains('active')) renderZoneStatus();
+            });
+
+            db.ref('menu_v7').on('value', (snapshot) => {
+                let menuSnap = snapshot.val();
+                if (!menuSnap || Object.keys(menuSnap).length === 0) {
+                    db.ref('menu_v7').set(fullMenu);
+                    menuSnap = fullMenu;
+                } else {
+                    const missingItems = findMissingMenuItems(menuSnap);
+                    if (Object.keys(missingItems).length) {
+                        db.ref('menu_v7').update(missingItems);
+                        menuSnap = { ...menuSnap, ...missingItems };
+                    }
+                }
+                globalMenuData = menuSnap;
+                if(currentUserRole === 'admin' && document.getElementById('tab-menu').classList.contains('active')) renderAdminMenuTable();
+                if(currentUserRole === 'admin' && document.getElementById('tab-stok').classList.contains('active')) populateStockDropdown();
+                if(currentUserRole === 'garson') { renderPOSMenu(); if(activeTable) renderOrders(); }
+                if(currentUserRole === 'garson') initPOSCategories();
+            });
+
+            db.ref('masalar_v7').on('value', (snapshot) => {
+                let data = snapshot.val();
+                if (!data) {
+                    data = {};
+                    Object.keys(zoneConfigs).forEach(zone => { data[zone] = {}; for(let i=1; i<=zoneConfigs[zone]; i++) { data[zone][i] = { orders: false, total: 0, note: "" }; } });
+                    db.ref('masalar_v7').set(data);
+                }
+                globalTablesData = data;
+                if(currentUserRole === 'garson') { renderTables(); if(activeTable) renderOrders(); }
+            });
+
+            db.ref('stock_v7').on('value', (snapshot) => {
+                globalStockData = snapshot.val() || {};
+                if(currentUserRole === 'admin' && document.getElementById('tab-stok').classList.contains('active')) renderAdminStockTable();
+                if(currentUserRole === 'garson') renderPOSMenu();
+            });
+        }
+
+        function switchAdminTab(tabId, evt) {
+            document.querySelectorAll('.admin-nav-btn').forEach(btn => btn.classList.remove('active'));
+            if(evt && evt.currentTarget) evt.currentTarget.classList.add('active');
+            document.querySelectorAll('.admin-panel-section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            if(tabId === 'menu') renderAdminMenuTable();
+            if(tabId === 'raporlar') loadAdminReports();
+            if(tabId === 'stok') { populateStockDropdown(); renderAdminStockTable(); }
+            if(tabId === 'personel') db.ref('ayarlar_v7/sifreler').once('value').then(s => renderStaffPasswords(s.val()));
+            if(tabId === 'masalar') renderZoneStatus();
+        }
+
+        // --- ACİL KURTARMA (İLK YÜKLEME) BUTONU ---
+        function forceLoadMenu() {
+            if(confirm("Menüyü veritabanına yüklemek istiyor musunuz? (Sadece ilk kurulumda veya menü boşsa kullanın)")) {
+                db.ref('menu_v7').set(fullMenu)
+                .then(() => alert("✅ Menü başarıyla yüklendi! Sayfayı yenileyin."))
+                .catch((e) => alert("❌ Hata! Lütfen Firebase kurallarını kontrol edin."));
+            }
+        }
+
+        function findMissingMenuItems(currentMenu) {
+            const missing = {};
+            Object.values(fullMenu).forEach(item => {
+                const exists = Object.values(currentMenu).some(menuItem => menuItem.name === item.name && menuItem.category === item.category);
+                if (!exists) {
+                    const key = 'm' + Date.now() + Math.floor(Math.random() * 1000);
+                    missing[key] = item;
+                }
+            });
+            return missing;
+        }
+
+        function checkCustomCategory(selectElem) {
+            const customInput = document.getElementById('customCatInput');
+            if(selectElem.value === 'YENI') { customInput.style.display = 'block'; customInput.focus(); } 
+            else { customInput.style.display = 'none'; customInput.value = ''; }
+        }
+
+        function saveProduct() {
+            const editKey = document.getElementById('editProdKey').value;
+            const name = document.getElementById('newProdName').value.trim();
+            const price = parseInt(document.getElementById('newProdPrice').value);
+            
+            let cat = document.getElementById('newProdCatSelect').value;
+            if(cat === 'YENI') cat = document.getElementById('customCatInput').value.trim();
+            
+            const desc = document.getElementById('newProdDesc').value.trim();
+            const img = document.getElementById('newProdImg').value.trim();
+
+            if(!name || isNaN(price) || !cat) return alert("Lütfen ürün adı, geçerli fiyat ve kategori alanlarını doldurun!");
+
+            const productData = { name: name, price: price, category: cat, image: img, desc: desc };
+
+            if(editKey) {
+                db.ref(`menu_v7/${editKey}`).update(productData).then(() => { alert("Ürün güncellendi!"); cancelEdit(); }).catch(e => alert("Hata: " + e.message));
+            } else {
+                db.ref(`menu_v7/${'m' + Date.now()}`).set(productData).then(() => { alert("Yeni ürün menüye eklendi!"); cancelEdit(); }).catch(e => alert("Hata: " + e.message));
+            }
+        }
+
+        function editProduct(key) {
+            const item = globalMenuData[key]; document.getElementById('editProdKey').value = key; document.getElementById('newProdName').value = item.name; document.getElementById('newProdPrice').value = item.price; 
+            const selectElem = document.getElementById('newProdCatSelect'); const customInput = document.getElementById('customCatInput');
+            let exists = Array.from(selectElem.options).some(opt => opt.value === item.category);
+            if(exists) { selectElem.value = item.category; customInput.style.display = 'none'; } 
+            else { selectElem.value = 'YENI'; customInput.style.display = 'block'; customInput.value = item.category; }
+            document.getElementById('newProdDesc').value = item.desc || ""; document.getElementById('newProdImg').value = item.image || ""; 
+            document.getElementById('formTitle').innerText = "✏️ Ürünü Düzenle"; document.getElementById('saveBtn').innerText = "💾 Güncelle"; document.getElementById('cancelBtn').style.display = "inline-block"; window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() { 
+            document.getElementById('editProdKey').value = ""; document.getElementById('newProdName').value = ""; document.getElementById('newProdPrice').value = ""; document.getElementById('newProdDesc').value = ""; document.getElementById('newProdImg').value = ""; document.getElementById('customCatInput').value = ""; document.getElementById('customCatInput').style.display = "none"; document.getElementById('newProdCatSelect').selectedIndex = 0;
+            document.getElementById('formTitle').innerText = "➕ Yeni Ürün Ekle / Düzenle"; document.getElementById('saveBtn').innerText = "➕ Ürünü Kaydet"; document.getElementById('cancelBtn').style.display = "none"; 
+        }
+
+        function deleteProduct(key) { if(confirm("Emin misiniz?")) db.ref(`menu_v7/${key}`).remove(); }
+
+        function renderAdminMenuTable() {
+            const tbody = document.getElementById('adminMenuTable'); tbody.innerHTML = '';
+            Object.keys(globalMenuData).forEach(key => {
+                const item = globalMenuData[key];
+                tbody.innerHTML += `<tr><td><b>${escapeHTML(item.name)}</b><br><small style="color:var(--text-muted)">${escapeHTML(item.desc || '-')}</small></td><td><span style="color:var(--success); font-weight:bold;">${item.price} TL</span></td><td><span style="background:var(--light); padding:4px 8px; border-radius:4px; font-weight:600;">${escapeHTML(item.category)}</span></td><td>${item.image && item.image.length > 5 ? `<a href="${item.image}" target="_blank">📷 Görsel</a>` : '<span style="color:#94a3b8">Yok</span>'}</td><td><button style="padding:5px 10px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="editProduct('${key}')">✏️</button> <button style="padding:5px 10px; background:var(--danger); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="deleteProduct('${key}')">🗑️</button></td></tr>`;
+            });
+        }
+
+        function updateZoneConfig() {
+            const zone = document.getElementById('adminZoneSelect').value; const newCount = parseInt(document.getElementById('adminTableCount').value);
+            if(!isNaN(newCount) && newCount > 0) db.ref(`ayarlar_v7/masaSayilari/${zone}`).set(newCount).then(() => { alert(`${zone} güncellendi!`); document.getElementById('adminTableCount').value = ""; });
+        }
+        function renderZoneStatus() {
+            const list = document.getElementById('currentZoneStatus'); list.innerHTML = '';
+            Object.keys(zoneConfigs).forEach(zone => { list.innerHTML += `<li><b>${zone}:</b> ${zoneConfigs[zone]} Masa</li>`; });
+        }
+        function renderStaffPasswords(sifrelerObj) {
+            const sifreler = sifrelerObj || { garson: "1453", admin: "2026" };
+            document.getElementById('staffTableBody').innerHTML = `
+                <tr><td>Ana Garson (Sipariş Ekranı)</td><td style="font-weight:bold; letter-spacing:2px;">${sifreler.garson}</td><td><button style="padding:5px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="updatePIN('garson')">Değiştir</button></td></tr>
+                <tr><td>Yönetici (Patron Paneli)</td><td style="font-weight:bold; letter-spacing:2px; color:var(--danger);">${sifreler.admin}</td><td><button style="padding:5px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="updatePIN('admin')">Değiştir</button></td></tr>
+            `;
+        }
+        function updatePIN(role) {
+            const newPIN = prompt(`Yeni PIN kodunu girin (Sadece 4 rakam):`);
+            if(newPIN && newPIN.length === 4 && !isNaN(newPIN)) db.ref(`ayarlar_v7/sifreler/${role}`).set(newPIN).then(() => alert('Şifre güncellendi!'));
+            else alert('Geçersiz şifre formatı.');
+        }
+
+        function populateStockDropdown() {
+            const select = document.getElementById('stockItemSelect'); const currentVal = select.value; select.innerHTML = '<option value="">-- Ürün Seçin --</option>';
+            Object.values(globalMenuData).sort((a,b) => a.name.localeCompare(b.name)).forEach(item => { select.innerHTML += `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`; });
+            if(currentVal) select.value = currentVal; 
+        }
+        function addStock() {
+            const itemName = document.getElementById('stockItemSelect').value; const qty = parseInt(document.getElementById('stockAddQty').value);
+            if(!itemName || isNaN(qty) || qty <= 0) return alert("Geçerli bir ürün ve adet giriniz.");
+            const safeName = itemName.replace(/[.#$\[\]]/g, '');
+            db.ref(`stock_v7/${safeName}`).transaction(currentStock => (currentStock || 0) + qty, (error, committed) => {
+                if(committed) { document.getElementById('stockAddQty').value = ''; alert("Stok eklendi!"); }
+            });
+        }
+        function removeStockTracking(safeName) { if(confirm("Takibi kaldırmak istiyor musunuz?")) db.ref(`stock_v7/${safeName}`).remove(); }
+        function renderAdminStockTable() {
+            const tbody = document.getElementById('adminStockTable'); tbody.innerHTML = '';
+            if(Object.keys(globalStockData).length === 0) { tbody.innerHTML = '<tr><td colspan="4">Henüz takip edilen ürün yok.</td></tr>'; return; }
+            Object.keys(globalStockData).forEach(safeName => {
+                const stock = globalStockData[safeName];
+                let status = '<span style="color:var(--success); font-weight:bold;">Yeterli</span>';
+                if(stock <= 0) status = '<span style="color:var(--danger); font-weight:bold;">Tükendi!</span>'; else if(stock <= 10) status = '<span style="color:var(--primary); font-weight:bold;">Azalıyor</span>';
+                tbody.innerHTML += `<tr><td><b>${escapeHTML(safeName)}</b></td><td><span style="font-size:16px; font-weight:bold;">${stock}</span> Adet</td><td>${status}</td><td><button style="padding:5px 10px; background:var(--danger); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="removeStockTracking('${escapeHTML(safeName)}')">Sil</button></td></tr>`;
+            });
+        }
+
+        function exportToCSV() {
+            if(currentReportData.length === 0) return alert("İndirilecek veri yok.");
+            let csvContent = "Tarih,Masa,Odeme Tipi,Tutar (TL)\n";
+            currentReportData.forEach(row => { csvContent += `${row.date} ${row.time},${row.table},${row.type},${row.total}\n`; });
+            const blob = new Blob(["\uFEFF"+csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(blob)); link.setAttribute("download", `Satis_Raporu_${new Date().toLocaleDateString()}.csv`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function loadAdminReports() {
+            const filter = document.getElementById('reportFilter').value; currentReportData = [];
+            db.ref('reports_v7').once('value').then((snapshot) => {
+                const allData = snapshot.val();
+                let totalCiro = 0, totalNakit = 0, totalKredi = 0; let itemCounts = {};
+                const tbody = document.getElementById('reportsTableBody'); const productsTbody = document.getElementById('reportsProductsTableBody');
+                tbody.innerHTML = ''; productsTbody.innerHTML = '';
+                if(allData) {
+                    const today = new Date();
+                    Object.keys(allData).forEach(dateKey => {
+                        const reportDate = new Date(dateKey); let include = false;
+                        if(filter === 'daily' && dateKey === today.toISOString().split('T')[0]) include = true;
+                        else if(filter === 'weekly' && Math.ceil(Math.abs(today - reportDate) / (1000 * 60 * 60 * 24)) <= 7) include = true;
+                        else if(filter === 'monthly' && reportDate.getMonth() === today.getMonth() && reportDate.getFullYear() === today.getFullYear()) include = true;
+                        else if(filter === 'yearly' && reportDate.getFullYear() === today.getFullYear()) include = true;
+                        else if(filter === 'all') include = true;
+
+                        if(include) {
+                            Object.values(allData[dateKey]).forEach(r => {
+                                if(r.type === 'Parçalı') { totalCiro += r.total; totalNakit += (r.details?.nakit || 0); totalKredi += (r.details?.kredi || 0); } 
+                                else { totalCiro += r.total; if(r.type === 'Nakit') totalNakit += r.total; if(r.type === 'Kredi Kartı') totalKredi += r.total; }
+                                currentReportData.push({date: dateKey, time: r.time, table: r.table, type: r.type, total: r.total});
+                                tbody.innerHTML += `<tr><td>${dateKey} <span style="color:#94a3b8">${r.time}</span></td><td>${r.table}</td><td><span style="padding:4px 8px; border-radius:4px; font-size:12px; color:white; background:${r.type==='Nakit'?'var(--success)':r.type==='Kredi Kartı'?'var(--blue)':'var(--purple)'}">${r.type}</span></td><td style="font-weight:bold;">${r.total} TL</td></tr>`;
+                                if(r.orders) {
+                                    Object.values(r.orders).forEach(o => {
+                                        if(itemCounts[o.name]) { itemCounts[o.name].count++; itemCounts[o.name].total += o.price; } else { itemCounts[o.name] = { count: 1, total: o.price }; }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                    const sortedItems = Object.entries(itemCounts).sort((a,b) => b[1].count - a[1].count);
+                    if(sortedItems.length > 0) {
+                        sortedItems.forEach(([name, data]) => { productsTbody.innerHTML += `<tr><td style="font-weight:500;">${escapeHTML(name)}</td><td><span style="color:var(--blue); font-weight:bold;">${data.count}</span> Adet</td><td style="color:var(--success); font-weight:bold;">${data.total} TL</td></tr>`; });
+                    } else { productsTbody.innerHTML = '<tr><td colspan="3">Veri yok.</td></tr>'; }
+                }
+                document.getElementById('dashTotalCiro').innerText = totalCiro + " TL"; document.getElementById('dashNakit').innerText = totalNakit + " TL"; document.getElementById('dashKredi').innerText = totalKredi + " TL";
+            });
+
+            db.ref('ikram_v7').once('value').then(snap => {
+                const tbody = document.getElementById('reportsGiftsTableBody'); tbody.innerHTML = '';
+                if(snap.val()) {
+                    const today = new Date();
+                    Object.values(snap.val()).reverse().forEach(g => {
+                        const gDate = new Date(g.date); let include = false;
+                        if(filter === 'daily' && g.date === today.toISOString().split('T')[0]) include = true;
+                        else if(filter === 'weekly' && Math.ceil(Math.abs(today - gDate) / (1000 * 60 * 60 * 24)) <= 7) include = true;
+                        else if(filter === 'monthly' && gDate.getMonth() === today.getMonth() && gDate.getFullYear() === today.getFullYear()) include = true;
+                        else if(filter === 'yearly' && gDate.getFullYear() === today.getFullYear()) include = true;
+                        else if(filter === 'all') include = true;
+
+                        if(include) tbody.innerHTML += `<tr><td style="font-weight:bold; color:var(--purple);">${escapeHTML(g.item)}</td><td style="font-size:12px; color:#64748b;">${g.date} ${g.time}</td><td>${g.table}</td></tr>`;
+                    });
+                } else { tbody.innerHTML = '<tr><td colspan="3">İkram kaydı bulunamadı.</td></tr>'; }
+            });
+        }
+
+        // --- GARSON POS ---
+        function initPOS() {
+            const zContainer = document.getElementById('zoneTabsContainer'); zContainer.innerHTML = '';
+            Object.keys(zoneConfigs).forEach(zone => { zContainer.innerHTML += `<button class="zone-btn ${zone === activeZone ? 'active' : ''}" onclick="changeZone('${zone}', event)">${zone}</button>`; });
+            initPOSCategories(); 
+            renderTables();
+            updateOrderScreenVisibility();
+        }
+        function initPOSCategories() {
+            if(currentUserRole !== 'garson') return;
+            const posCats = document.getElementById('posCategories'); if(!posCats) return;
+            const availableCategories = menuCategories.filter(cat => Object.values(globalMenuData).some(item => item.category === cat));
+            if (!availableCategories.includes(currentCategory)) currentCategory = availableCategories[0] || menuCategories[0];
+            posCats.innerHTML = '';
+            availableCategories.forEach(cat => { posCats.innerHTML += `<button class="cat-btn ${cat === currentCategory ? 'active' : ''}" onclick="filterCategory('${escapeHTML(cat)}', event)">${escapeHTML(cat)}</button>`; });
+        }
+        function changeZone(zone, evt) { activeZone = zone; document.querySelectorAll('.zone-btn').forEach(b => b.classList.remove('active')); if(evt && evt.currentTarget) evt.currentTarget.classList.add('active'); renderTables(); }
+        
+        function renderTables() {
+            const container = document.getElementById('tablesContainer'); container.innerHTML = '';
+            const tables = globalTablesData[activeZone] || {};
+            for(let i=1; i<=zoneConfigs[activeZone]; i++) {
+                const tableData = tables[i] || { orders: false, total: 0, note: "" };
+                const btn = document.createElement('button'); btn.className = 'table-btn ' + (tableData.orders ? 'occupied' : 'empty');
+                if(activeTable === `${activeZone}-${i}`) btn.classList.add('active');
+                btn.innerHTML = `Masa ${i} <span class="table-price">${tableData.orders ? tableData.total + ' TL' : ''}</span>`;
+                btn.onclick = () => selectTable(activeZone, i); container.appendChild(btn);
+            }
+        }
+        
+        function selectTable(zone, tId) {
+            activeTable = `${zone}-${tId}`;
+            document.getElementById('emptyOrderScreen').style.display = 'none';
+            document.getElementById('activeTableTitle').innerText = `${zone} - Masa ${tId}`;
+            const tableData = globalTablesData[zone][tId] || {};
+            document.getElementById('tableNoteInput').value = tableData.note || "";
+            updateOrderScreenVisibility();
+            renderTables(); renderPOSMenu(); renderOrders();
+        }
+        function closeOrderScreen() {
+            activeTable = null;
+            document.getElementById('activeTableTitle').innerText = 'Masa Seçilmedi';
+            document.getElementById('tableNoteInput').value = '';
+            document.getElementById('emptyOrderScreen').style.display = 'flex';
+            updateOrderScreenVisibility();
+            renderTables();
+        }
+        function updateOrderScreenVisibility() {
+            const show = !!activeTable;
+            const orderLayout = document.querySelector('.order-main-layout');
+            const categoryRow = document.querySelector('.category-tabs');
+            const menuContainer = document.getElementById('menuContainer');
+            const orderList = document.getElementById('orderList');
+            const noteBox = document.querySelector('.table-note-box');
+            const actionBar = document.querySelector('.action-bar');
+            if (orderLayout) orderLayout.style.display = show ? 'grid' : 'none';
+            if (categoryRow) categoryRow.style.display = show ? 'flex' : 'none';
+            if (menuContainer) menuContainer.style.display = show ? 'grid' : 'none';
+            if (orderList) orderList.style.display = show ? 'block' : 'none';
+            if (noteBox) noteBox.style.display = show ? 'flex' : 'none';
+            if (actionBar) actionBar.style.display = show ? 'flex' : 'none';
+        }
+        function filterCategory(cat, evt) { currentCategory = cat; document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active')); if(evt && evt.currentTarget) evt.currentTarget.classList.add('active'); renderPOSMenu(); }
+        
+        function renderPOSMenu() {
+            const container = document.getElementById('menuContainer'); container.innerHTML = '';
+            Object.keys(globalMenuData).forEach(key => {
+                const item = globalMenuData[key];
+                if(item.category === currentCategory) {
+                    const safeName = item.name.replace(/[.#$\[\]]/g, ''); const stock = globalStockData[safeName]; const isOutOfStock = (stock !== undefined && stock <= 0);
+                    const btn = document.createElement('button'); btn.className = `menu-item-btn ${isOutOfStock ? 'out-of-stock' : ''}`;
+                    if(isOutOfStock) { 
+                        btn.innerHTML = `${escapeHTML(item.name)} <br><span>TÜKENDİ</span>`; 
+                    } else { 
+                        btn.innerHTML = `${escapeHTML(item.name)} <span>${item.price} TL</span>`; 
+                        btn.onclick = () => addToOrder(item); 
+                    }
+                    container.appendChild(btn);
+                }
+            });
+        }
+        
+        function addToOrder(item) {
+            if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
+            const [zone, tId] = activeTable.split('-');
+            db.ref(`masalar_v7/${zone}/${tId}/orders`).push({ name: item.name, price: item.price })
+                .then(() => recalculateTotal(zone, tId))
+                .catch(err => alert("Hata (Bağlantı kopuk olabilir): " + err.message));
+        }
+        
+        function removeOrder(orderKey) {
+            const [zone, tId] = activeTable.split('-'); db.ref(`masalar_v7/${zone}/${tId}/orders/${orderKey}`).remove().then(() => recalculateTotal(zone, tId));
+        }
+
+        function giftOrder(orderKey, itemName) {
+            if(confirm(`"${itemName}" ürününü hesaptan düşüp "İkram" olarak kaydetmek istiyor musunuz?`)) {
+                const [zone, tId] = activeTable.split('-');
+                db.ref('ikram_v7').push().set({ item: itemName, table: `${zone}-${tId}`, date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('tr-TR') });
+                const safeName = itemName.replace(/[.#$\[\]]/g, '');
+                db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
+                db.ref(`masalar_v7/${zone}/${tId}/orders/${orderKey}`).remove().then(() => recalculateTotal(zone, tId));
+            }
+        }
+
+        function recalculateTotal(zone, tId) {
+            db.ref(`masalar_v7/${zone}/${tId}/orders`).once('value').then(snap => {
+                let total = 0; 
+                if(snap.val()) {
+                    Object.values(snap.val()).forEach(o => total += o.price);
+                }
+                db.ref(`masalar_v7/${zone}/${tId}`).update({ total: total, orders: snap.val() || false });
+            });
+        }
+
+        function renderOrders() {
+            const container = document.getElementById('orderList'); container.innerHTML = '';
+            const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId] || {};
+            document.getElementById('totalAmount').innerText = tableData.total || 0;
+            if(!tableData.orders) { container.innerHTML = '<div style="text-align:center; padding:20px;">Sipariş yok.</div>'; return; }
+            Object.keys(tableData.orders).forEach(key => {
+                const order = tableData.orders[key];
+                container.innerHTML += `<div class="order-item"><span>${escapeHTML(order.name)}</span><div><span style="color:var(--primary); font-weight:bold; margin-right:15px;">${order.price} TL</span><button class="gift-btn" onclick="giftOrder('${key}', '${escapeHTML(order.name)}')">🎁 İkram</button><button class="delete-btn" onclick="removeOrder('${key}')">Sil</button></div></div>`;
+            });
+        }
+
+        function saveTableNote() {
+            if(!activeTable) return; const note = document.getElementById('tableNoteInput').value; const [zone, tId] = activeTable.split('-');
+            db.ref(`masalar_v7/${zone}/${tId}/note`).set(note); alert("Not kaydedildi!");
+        }
+        function printBill() {
+            if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
+            if(!tableData || !tableData.orders) return alert("Sipariş yok!");
+            document.getElementById('r-date').innerText = new Date().toLocaleString('tr-TR'); document.getElementById('r-table').innerText = `${zone.toUpperCase()} - MASA ${tId}`; document.getElementById('r-note').innerText = tableData.note ? `Not: ${escapeHTML(tableData.note)}` : "";
+            const rc = document.getElementById('r-items'); rc.innerHTML = ''; const grouped = {};
+            Object.values(tableData.orders).forEach(o => { if(grouped[o.name]) { grouped[o.name].count++; grouped[o.name].total += o.price; } else { grouped[o.name] = { count: 1, total: o.price }; } });
+            for(const [name, data] of Object.entries(grouped)) { rc.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom: 5px;"><span>${data.count}x ${escapeHTML(name)}</span><span>${data.total} TL</span></div>`; }
+            document.getElementById('r-total').innerText = `TOPLAM: ${tableData.total} TL`; window.print();
+        }
+
+        function payBill(paymentType) {
+            if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
+            if(!tableData.orders) return;
+            if(confirm(`Toplam ${tableData.total} TL, ${paymentType} olarak kapatılacak. Onaylıyor musunuz?`)) { processPayment(zone, tId, tableData, paymentType, null); }
+        }
+
+        function openPartialPayModal() {
+            if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
+            if(!tableData || !tableData.orders) return alert("Hesap boş!");
+            document.getElementById('partialTotalAmt').innerText = tableData.total; document.getElementById('partialCashInput').value = ''; document.getElementById('partialCCAmt').innerText = '0'; document.getElementById('partialPayModal').style.display = 'flex';
+        }
+        function closePartialPayModal() { document.getElementById('partialPayModal').style.display = 'none'; }
+        function calcPartial() {
+            const total = parseInt(document.getElementById('partialTotalAmt').innerText); let cash = parseInt(document.getElementById('partialCashInput').value);
+            if(isNaN(cash) || cash < 0) cash = 0; if(cash > total) { document.getElementById('partialCashInput').value = total; cash = total; }
+            document.getElementById('partialCCAmt').innerText = total - cash;
+        }
+        function completePartialPay() {
+            const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId]; const total = tableData.total;
+            let cash = parseInt(document.getElementById('partialCashInput').value) || 0; let cc = total - cash;
+            if(confirm(`Ödeme: ${cash} TL Nakit, ${cc} TL Kredi Kartı. Onaylıyor musunuz?`)) { processPayment(zone, tId, tableData, 'Parçalı', { nakit: cash, kredi: cc }); closePartialPayModal(); }
+        }
+
+        function processPayment(zone, tId, tableData, paymentType, partialDetails) {
+            const dateKey = new Date().toISOString().split('T')[0];
+            Object.values(tableData.orders).forEach(order => {
+                const safeName = order.name.replace(/[.#$\[\]]/g, '');
+                db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
+            });
+            let reportObj = { table: `${zone}-${tId}`, total: tableData.total, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: tableData.orders };
+            if(partialDetails) reportObj.details = partialDetails;
+            db.ref(`reports_v7/${dateKey}`).push().set(reportObj).then(() => { db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "" }); closeOrderScreen(); });
+        }
+
+        function openMoveModal() {
+            if(!activeTable) return; const [cZone, cId] = activeTable.split('-');
+            if(!globalTablesData[cZone][cId] || !globalTablesData[cZone][cId].orders) return alert("Sipariş yok.");
+            moveTargetZone = cZone; document.getElementById('moveTableModal').style.display = 'flex'; renderMoveModalZones(); renderMoveModalTables();
+        }
+        function closeMoveModal() { document.getElementById('moveTableModal').style.display = 'none'; }
+        function renderMoveModalZones() {
+            const zContainer = document.getElementById('moveZoneTabs'); zContainer.innerHTML = '';
+            Object.keys(zoneConfigs).forEach(zone => {
+                zContainer.innerHTML += `<button class="zone-btn ${zone === moveTargetZone ? 'active' : ''}" style="flex: 0 0 auto;" onclick="changeMoveModalZone('${zone}')">${zone}</button>`;
+            });
+        }
+        function changeMoveModalZone(zone) { moveTargetZone = zone; renderMoveModalZones(); renderMoveModalTables(); }
+        function renderMoveModalTables() {
+            const container = document.getElementById('moveTablesGrid'); container.innerHTML = '';
+            for(let i=1; i<=zoneConfigs[moveTargetZone]; i++) {
+                const tableData = (globalTablesData[moveTargetZone] || {})[i] || { orders: false }; const btn = document.createElement('button'); btn.className = 'table-btn ' + (tableData.orders ? 'occupied' : 'empty');
+                if (activeTable === `${moveTargetZone}-${i}`) { btn.style.opacity = '0.3'; btn.style.cursor = 'not-allowed'; btn.innerHTML = `Masa ${i} <br><small>Şu anki</small>`; } 
+                else if (tableData.orders) { btn.style.opacity = '0.6'; btn.innerHTML = `Masa ${i} <br><small>Dolu (Birleştir)</small>`; btn.onclick = () => confirmMoveTouch(moveTargetZone, i, true); } 
+                else { btn.innerHTML = `Masa ${i} <br><small>Boş</small>`; btn.onclick = () => confirmMoveTouch(moveTargetZone, i, false); }
+                container.appendChild(btn);
+            }
+        }
+        function confirmMoveTouch(tZone, tId, isOccupied) {
+            const [cZone, cId] = activeTable.split('-'); let msg = isOccupied ? "Bu masa dolu. Kendi adisyonunuzu o masayla BİRLEŞTİRMEK istiyor musunuz?" : "Tüm adisyon TAŞINACAKTIR. Onaylıyor musunuz?";
+            if(confirm(msg)) {
+                const currentData = globalTablesData[cZone][cId];
+                if(isOccupied) {
+                    const targetData = globalTablesData[tZone][tId]; let mergedOrders = { ...targetData.orders, ...currentData.orders };
+                    db.ref(`masalar_v7/${tZone}/${tId}`).update({ orders: mergedOrders, total: targetData.total + currentData.total, note: targetData.note || currentData.note || "" }).then(() => {
+                        db.ref(`masalar_v7/${cZone}/${cId}`).set({ orders: false, total: 0, note: "" }); closeMoveModal(); closeOrderScreen();
+                    });
+                } else {
+                    db.ref(`masalar_v7/${tZone}/${tId}`).set(currentData).then(() => {
+                        db.ref(`masalar_v7/${cZone}/${cId}`).set({ orders: false, total: 0, note: "" }); closeMoveModal(); closeOrderScreen();
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
