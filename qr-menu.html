@@ -139,9 +139,123 @@
                 Aperatifler: 'Appetizers'
             }
         };
+        const englishPhraseMap = {
+            'çikolata dünyası': 'Chocolate World',
+            'sütlaç': 'Rice Pudding',
+            'fındıklı sütlaç': 'Pistachio Rice Pudding',
+            'dondurmalı sütlaç': 'Rice Pudding with Ice Cream',
+            'kavurma kaşar gözleme': 'Roast Cheddar Flatbread',
+            'sucuk kaşar gözleme': 'Sausage Cheddar Flatbread',
+            'patates kaşar gözleme': 'Potato Cheddar Flatbread',
+            'kaşarlı gözleme': 'Cheddar Flatbread',
+            'kavurma kaşar tost': 'Roast Cheddar Toast',
+            'kaşarlı tost': 'Cheddar Toast',
+            'karışık tost': 'Mixed Toast',
+            'çift kaşarlı tost': 'Double Cheddar Toast',
+            '3 çeyrek kavurma kaşar tost': '3/4 Roast Cheddar Toast',
+            '3 çeyrek kaşarlı tost': '3/4 Cheddar Toast',
+            '3 çeyrek karışık tost': '3/4 Mixed Toast',
+            'hamburger': 'Hamburger',
+            'cheese burger': 'Cheese Burger',
+            'chicken burger': 'Chicken Burger',
+            'sosyal combo burger': 'Sosyal Combo Burger',
+            'sucuk burger': 'Sausage Burger',
+            'bbq soslu tavuk': 'BBQ Sauce Chicken',
+            'soya soslu tavuk': 'Soy Sauce Chicken',
+            'köri soslu tavuk': 'Curry Sauce Chicken',
+            'kremalı mantarlı tavuk': 'Creamy Mushroom Chicken',
+            'meksikan soslu tavuk': 'Mexican Sauce Chicken',
+            'tavuk pirzola': 'Chicken Steak',
+            'domates ve salata ile': 'with tomato and salad',
+            'bol malzemeli': 'loaded with ingredients',
+            'eriyen kaşar ile': 'with melted cheddar',
+            'ekstra kaşarlı': 'extra cheddar',
+            'doyurucu porsiyon': 'filling portion',
+            'dana eti, turşu ve patates': 'beef, pickles and fries',
+            'dana eti, cheddar ve patates': 'beef, cheddar and fries',
+            'tavuk fileto ve patates': 'chicken fillet and fries',
+            'çift kat köfte': 'double patty',
+            'ızgara sucuk ve patates': 'grilled sausage and fries',
+            'barbekü soslu ve garnitür': 'with barbecue sauce and garnish',
+            'soya soslu': 'with soy sauce',
+            'krema ve köri soslu': 'with cream and curry sauce',
+            'taze mantar ve krema': 'fresh mushrooms and cream',
+            'acı meksika fasulyeli': 'with spicy Mexican beans',
+            'ızgara tavuk pirzola, pilav': 'grilled chicken steak, rice',
+            'fırınlanmış anne sütlacı': 'baked rice pudding',
+            'dondurma ile servis': 'served with ice cream',
+            'çikolata severlere.': 'for chocolate lovers.'
+        };
+        const englishWordMap = {
+            'çikolata': 'chocolate',
+            'dünyası': 'world',
+            'sütlaç': 'rice pudding',
+            'fındıklı': 'pistachio',
+            'dondurmalı': 'with ice cream',
+            'kavurma': 'roast',
+            'kaşar': 'cheddar',
+            'gözleme': 'flatbread',
+            'tost': 'toast',
+            'karışık': 'mixed',
+            'çift': 'double',
+            'çeyrek': 'quarter',
+            'sucuk': 'sausage',
+            'soslu': 'sauced',
+            'tavuk': 'chicken',
+            'soya': 'soy',
+            'köri': 'curry',
+            'kremalı': 'creamy',
+            'mantarlı': 'mushroom',
+            'meksikan': 'mexican',
+            'pirzola': 'steak',
+            'pilav': 'rice',
+            'domates': 'tomato',
+            'salata': 'salad',
+            've': 'and',
+            'ile': 'with',
+            'bol': 'loaded',
+            'malzemeli': 'with ingredients',
+            'eriyen': 'melted',
+            'ekstra': 'extra',
+            'doyurucu': 'filling',
+            'porsiyon': 'portion',
+            'dana': 'beef',
+            'eti': 'meat',
+            'turşu': 'pickles',
+            'patates': 'fries',
+            'fileto': 'fillet',
+            'ızgara': 'grilled',
+            'barbekü': 'barbecue',
+            'garnitür': 'garnish',
+            'fırınlanmış': 'baked',
+            'anne': 'rice',
+            'dondurma': 'ice cream',
+            'servis': 'service',
+            'severlere': 'lovers',
+            'acı': 'spicy',
+            'fasulyeli': 'bean',
+            'taze': 'fresh',
+            'mantar': 'mushroom',
+            'krema': 'cream',
+            'sos': 'sauce',
+            'kat': 'layer',
+            'köfte': 'patty'
+        };
 
         function getLabel(key) { return (langLabels[currentLang] && langLabels[currentLang][key]) || langLabels.tr[key] || key; }
         function getCategoryLabel(cat) { return currentLang === 'en' ? (categoryLabels.en[cat] || cat) : cat; }
+        function translateMenuText(text) {
+            if (!text || currentLang !== 'en') return text;
+            const normalized = text.toString().trim();
+            const lower = normalized.toLowerCase();
+            if (englishPhraseMap[lower]) return englishPhraseMap[lower];
+            return lower.split(/(\s+)/).map(token => {
+                const clean = token.replace(/[.,!?:;()]/g, '');
+                if (!clean) return token;
+                const mapped = englishWordMap[clean];
+                return mapped || token;
+            }).join('').replace(/\s+([.,!?:;])/g, '$1');
+        }
         function setLanguage(lang) {
             currentLang = lang;
             localStorage.setItem('qrMenuLang', lang);
@@ -218,7 +332,9 @@
             const container = document.getElementById('menuContainer');
             container.innerHTML = '';
             const items = Object.values(globalMenuData).filter(item => {
-                const text = `${item.name || ''} ${item.desc || ''}`.toLowerCase();
+                const translatedName = translateMenuText(item.name || '');
+                const translatedDesc = translateMenuText(item.desc || '');
+                const text = `${translatedName} ${translatedDesc}`.toLowerCase();
                 const categoryMatch = item.category === currentCategory;
                 return categoryMatch && (!searchQuery || text.includes(searchQuery));
             });
@@ -228,24 +344,26 @@
                 return;
             }
 
-            container.innerHTML += `<div class="section-title">${escapeHTML(currentCategory)}</div>`;
+            container.innerHTML += `<div class="section-title">${escapeHTML(getCategoryLabel(currentCategory))}</div>`;
             items.forEach(item => { container.innerHTML += renderMenuItem(item); });
         }
 
         function renderMenuItem(item) {
+            const translatedName = translateMenuText(item.name || '');
+            const translatedDesc = translateMenuText(item.desc || '');
             const safeName = (item.name || '').replace(/[.#$\[\]]/g, '');
             const stock = globalStockData[safeName];
             const isOutOfStock = typeof stock === 'number' && stock <= 0;
-            const descHTML = item.desc ? `<div class="item-desc">${escapeHTML(item.desc)}</div>` : '';
+            const descHTML = translatedDesc ? `<div class="item-desc">${escapeHTML(translatedDesc)}</div>` : '';
             const badgeHTML = isOutOfStock ? `<span class="out-badge">${escapeHTML(getLabel('out'))}</span>` : '';
             const priceText = item.price ? escapeHTML(item.price.toString()) : '0';
             const imageURL = (item.image || '').trim();
-            const imageHTML = imageURL ? `<img class="item-img" src="${escapeHTML(imageURL)}" alt="${escapeHTML(item.name || 'Ürün')}" loading="lazy">` : '';
+            const imageHTML = imageURL ? `<img class="item-img" src="${escapeHTML(imageURL)}" alt="${escapeHTML(translatedName || 'Product')}" loading="lazy">` : '';
 
             return `
                 <div class="menu-item ${isOutOfStock ? 'out-of-stock' : ''}">
                     <div class="item-info">
-                        <h3 class="item-name">${escapeHTML(item.name || '')} ${badgeHTML}</h3>
+                        <h3 class="item-name">${escapeHTML(translatedName)} ${badgeHTML}</h3>
                         ${descHTML}
                         <div class="item-price">${priceText} ${escapeHTML(getLabel('currency'))}</div>
                     </div>
