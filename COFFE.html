@@ -72,6 +72,11 @@
         .order-search { display: flex; gap: 10px; margin-bottom: 10px; }
         .order-search input { flex: 1; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--light); outline: none; font-size: 14px; }
         .order-search button { padding: 12px 18px; background: var(--primary); color: white; border: none; border-radius: 14px; cursor: pointer; font-weight: 700; }
+        .qty-quick-add { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+        .qty-display { min-width: 84px; text-align: center; background: #0f172a; color: white; border-radius: 10px; padding: 10px 12px; font-weight: 800; letter-spacing: 0.5px; }
+        .qty-keypad { display: grid; grid-template-columns: repeat(6, minmax(38px, auto)); gap: 6px; }
+        .qty-keypad button { border: 1px solid var(--light); background: #f8fafc; color: var(--dark); border-radius: 9px; padding: 8px 10px; font-weight: 800; cursor: pointer; }
+        .qty-keypad button.clear { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.2); }
         .menu-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; }
         .category-tabs { display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; margin-bottom: 12px; min-height: 52px; position: sticky; top: 0; background: white; z-index: 2; }
         .category-tabs::-webkit-scrollbar { height: 8px; }
@@ -252,7 +257,7 @@
                             <option value="Tatlılar">Tatlılar</option><option value="Gözleme">Gözleme</option>
                             <option value="Tostlar">Tostlar</option><option value="Burgerler">Burgerler</option>
                             <option value="Beyaz Et">Beyaz Et</option><option value="Kırmızı Et">Kırmızı Et</option>
-                            <option value="Aperatifler">Aperatifler</option><option value="Nargile">Nargile</option>
+                            <option value="Aperatifler">Aperatifler</option><option value="Çerezler">Çerezler</option><option value="Nargile">Nargile</option>
                             <option value="YENI">+ Yeni Kategori Ekle...</option>
                         </select>
                         <input type="text" id="customCatInput" placeholder="Yeni Kategori Adı" style="display:none;">
@@ -260,6 +265,10 @@
                     <div class="form-grid" style="margin-top: 10px;">
                         <input type="text" id="newProdDesc" placeholder="Açıklama / İçindekiler">
                         <input type="text" id="newProdImg" placeholder="Fotoğraf URL Linki">
+                    </div>
+                    <div style="margin-top: 8px; display:flex; align-items:center; gap:8px; color:#334155; font-weight:600;">
+                        <input type="checkbox" id="newProdHideInQr" style="width:16px; height:16px;">
+                        <label for="newProdHideInQr">Bu ürün QR menüde görünmesin (sadece garson/yönetici)</label>
                     </div>
                     <div style="margin-top: 15px; display:flex; gap:10px;">
                         <button id="saveBtn" style="background:var(--success); color:white; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="saveProduct()">➕ Ürünü Kaydet</button>
@@ -278,7 +287,7 @@
                         <button style="background:#64748b; color:white; border:none; padding:10px 18px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="document.getElementById('bulkImageInput').value=''">Alanı Temizle</button>
                     </div>
                 </div>
-                <table><thead><tr><th>Ürün Adı & Açıklama</th><th>Fiyat</th><th>Kategori</th><th>Görsel</th><th>İşlem</th></tr></thead><tbody id="adminMenuTable"></tbody></table>
+                <table><thead><tr><th>Ürün Adı & Açıklama</th><th>Fiyat</th><th>Kategori</th><th>QR</th><th>Görsel</th><th>İşlem</th></tr></thead><tbody id="adminMenuTable"></tbody></table>
             </div>
 
             <div class="admin-panel-section" id="tab-stok">
@@ -329,6 +338,22 @@
                     <div class="order-search">
                         <input type="search" id="searchInput" placeholder="Ürün Ara" oninput="searchMenu()">
                         <button onclick="searchMenu()">Ara</button>
+                    </div>
+                    <div class="qty-quick-add">
+                        <div class="qty-display" id="quickQtyDisplay">x1</div>
+                        <div class="qty-keypad">
+                            <button onclick="appendQtyDigit('1')">1</button>
+                            <button onclick="appendQtyDigit('2')">2</button>
+                            <button onclick="appendQtyDigit('3')">3</button>
+                            <button onclick="appendQtyDigit('4')">4</button>
+                            <button onclick="appendQtyDigit('5')">5</button>
+                            <button onclick="appendQtyDigit('6')">6</button>
+                            <button onclick="appendQtyDigit('7')">7</button>
+                            <button onclick="appendQtyDigit('8')">8</button>
+                            <button onclick="appendQtyDigit('9')">9</button>
+                            <button onclick="appendQtyDigit('0')">0</button>
+                            <button class="clear" onclick="clearQtyInput()">C</button>
+                        </div>
                     </div>
                     <div class="menu-panel">
                         <div class="category-tabs" id="posCategories"></div>
@@ -389,10 +414,12 @@
             "Burgerler",
             "Beyaz Et",
             "Kırmızı Et",
-            "Aperatifler"
+            "Aperatifler",
+            "Çerezler"
         ];
         let currentCategory = menuCategories[0]; let moveTargetZone = 'Salon'; let currentReportData = [];
         let tableTimerInterval = null;
+        let quantityInputBuffer = '';
 
         const fullMenu = {
             m1: { name: "Lady Killer + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
@@ -528,7 +555,18 @@
             m131: { name: "Sosyal Combo Basket", price: 400, category: "Aperatifler", desc: "Sosis, soğan halkası, sigara böreği ve patates.", image: "" },
             m132: { name: "Sosis Tabağı", price: 260, category: "Aperatifler", desc: "Sosis ve patates.", image: "" },
             m133: { name: "Köfte Ekmek", price: 250, category: "Aperatifler", desc: "Yarım ekmek köfte.", image: "" },
-            m134: { name: "3 Çeyrek Köfte Ekmek", price: 375, category: "Aperatifler", desc: "Büyük boy köfte ekmek.", image: "" }
+            m134: { name: "3 Çeyrek Köfte Ekmek", price: 375, category: "Aperatifler", desc: "Büyük boy köfte ekmek.", image: "" },
+            m135: { name: "Çerez", price: 200, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m136: { name: "Servis", price: 50, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m137: { name: "Digitürk", price: 150, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m138: { name: "Digitürk Derbi", price: 400, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m139: { name: "Volkan", price: 125, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m140: { name: "Meyve Tabağı", price: 350, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m141: { name: "Serviss", price: 100, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m142: { name: "Sigara", price: 150, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m143: { name: "Şarj Aleti", price: 50, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m144: { name: "Eski Bakiye", price: 17000, category: "Çerezler", desc: "", image: "", hiddenInQr: true },
+            m145: { name: "Extra", price: 400, category: "Çerezler", desc: "", image: "", hiddenInQr: true }
         };
 
         function checkLogin() {
@@ -626,8 +664,17 @@
         // --- ACİL KURTARMA (İLK YÜKLEME) BUTONU ---
         function forceLoadMenu() {
             if(confirm("Menüyü veritabanına yüklemek istiyor musunuz? (Sadece ilk kurulumda veya menü boşsa kullanın)")) {
-                db.ref('menu_v7').set(fullMenu)
-                .then(() => alert("✅ Menü başarıyla yüklendi! Sayfayı yenileyin."))
+                db.ref('menu_v7').once('value').then(snap => {
+                    const currentMenu = snap.val() || {};
+                    const mergedMenu = {};
+                    Object.entries(fullMenu).forEach(([key, item]) => {
+                        const existing = Object.values(currentMenu).find(menuItem => menuItem.name === item.name && menuItem.category === item.category) || {};
+                        const safeImage = (item.image || item.img || existing.image || existing.img || '').trim();
+                        mergedMenu[key] = { ...item, image: safeImage, img: safeImage, hiddenInQr: item.hiddenInQr === true || existing.hiddenInQr === true };
+                    });
+                    return db.ref('menu_v7').set(mergedMenu);
+                })
+                .then(() => alert("✅ Menü başarıyla yüklendi! (Mevcut görseller korundu) Sayfayı yenileyin."))
                 .catch((e) => alert("❌ Hata! Lütfen Firebase kurallarını kontrol edin."));
             }
         }
@@ -660,10 +707,11 @@
             
             const desc = document.getElementById('newProdDesc').value.trim();
             const img = document.getElementById('newProdImg').value.trim();
+            const hiddenInQr = document.getElementById('newProdHideInQr').checked;
 
             if(!name || isNaN(price) || !cat) return alert("Lütfen ürün adı, geçerli fiyat ve kategori alanlarını doldurun!");
 
-            const productData = { name: name, price: price, category: cat, image: img, img: img, desc: desc };
+            const productData = { name: name, price: price, category: cat, image: img, img: img, desc: desc, hiddenInQr: hiddenInQr };
 
             if(editKey) {
                 db.ref(`menu_v7/${editKey}`).update(productData).then(() => { alert("Ürün güncellendi!"); cancelEdit(); }).catch(e => alert("Hata: " + e.message));
@@ -726,11 +774,13 @@
             if(exists) { selectElem.value = item.category; customInput.style.display = 'none'; } 
             else { selectElem.value = 'YENI'; customInput.style.display = 'block'; customInput.value = item.category; }
             document.getElementById('newProdDesc').value = item.desc || ""; document.getElementById('newProdImg').value = item.image || ""; 
+            document.getElementById('newProdHideInQr').checked = item.hiddenInQr === true;
             document.getElementById('formTitle').innerText = "✏️ Ürünü Düzenle"; document.getElementById('saveBtn').innerText = "💾 Güncelle"; document.getElementById('cancelBtn').style.display = "inline-block"; window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function cancelEdit() { 
             document.getElementById('editProdKey').value = ""; document.getElementById('newProdName').value = ""; document.getElementById('newProdPrice').value = ""; document.getElementById('newProdDesc').value = ""; document.getElementById('newProdImg').value = ""; document.getElementById('customCatInput').value = ""; document.getElementById('customCatInput').style.display = "none"; document.getElementById('newProdCatSelect').selectedIndex = 0;
+            document.getElementById('newProdHideInQr').checked = false;
             document.getElementById('formTitle').innerText = "➕ Yeni Ürün Ekle / Düzenle"; document.getElementById('saveBtn').innerText = "➕ Ürünü Kaydet"; document.getElementById('cancelBtn').style.display = "none"; 
         }
 
@@ -741,7 +791,10 @@
             Object.keys(globalMenuData).forEach(key => {
                 const item = globalMenuData[key];
                 const imageUrl = (item.image || item.img || '').trim();
-                tbody.innerHTML += `<tr><td><b>${escapeHTML(item.name)}</b><br><small style="color:var(--text-muted)">${escapeHTML(item.desc || '-')}</small></td><td><span style="color:var(--success); font-weight:bold;">${item.price} TL</span></td><td><span style="background:var(--light); padding:4px 8px; border-radius:4px; font-weight:600;">${escapeHTML(item.category)}</span></td><td>${imageUrl.length > 5 ? `<a href="${imageUrl}" target="_blank">📷 Görsel</a>` : '<span style="color:#94a3b8">Yok</span>'}</td><td><button style="padding:5px 10px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="editProduct('${key}')">✏️</button> <button style="padding:5px 10px; background:var(--danger); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="deleteProduct('${key}')">🗑️</button></td></tr>`;
+                const qrBadge = item.hiddenInQr === true
+                    ? '<span style="background:rgba(239,68,68,0.12); color:var(--danger); padding:4px 8px; border-radius:6px; font-weight:700;">Gizli</span>'
+                    : '<span style="background:rgba(16,185,129,0.12); color:var(--success); padding:4px 8px; border-radius:6px; font-weight:700;">Görünür</span>';
+                tbody.innerHTML += `<tr><td><b>${escapeHTML(item.name)}</b><br><small style="color:var(--text-muted)">${escapeHTML(item.desc || '-')}</small></td><td><span style="color:var(--success); font-weight:bold;">${item.price} TL</span></td><td><span style="background:var(--light); padding:4px 8px; border-radius:4px; font-weight:600;">${escapeHTML(item.category)}</span></td><td>${qrBadge}</td><td>${imageUrl.length > 5 ? `<a href="${imageUrl}" target="_blank">📷 Görsel</a>` : '<span style="color:#94a3b8">Yok</span>'}</td><td><button style="padding:5px 10px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="editProduct('${key}')">✏️</button> <button style="padding:5px 10px; background:var(--danger); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="deleteProduct('${key}')">🗑️</button></td></tr>`;
             });
         }
 
@@ -880,10 +933,33 @@
             const zContainer = document.getElementById('zoneTabsContainer'); zContainer.innerHTML = '';
             Object.keys(zoneConfigs).forEach(zone => { zContainer.innerHTML += `<button class="zone-btn ${zone === activeZone ? 'active' : ''}" onclick="changeZone('${zone}', event)">${zone}</button>`; });
             initPOSCategories(); 
+            renderQtyDisplay();
             renderTables();
             renderPOSMenu();
             updateOrderScreenVisibility();
             startTableTimerTicker();
+        }
+        function renderQtyDisplay() {
+            const box = document.getElementById('quickQtyDisplay');
+            if (!box) return;
+            box.innerText = quantityInputBuffer ? `x${quantityInputBuffer}` : 'x1';
+        }
+        function appendQtyDigit(digit) {
+            if (!/^\d$/.test(String(digit))) return;
+            if (quantityInputBuffer.length >= 3) return;
+            if (quantityInputBuffer === '0') quantityInputBuffer = '';
+            quantityInputBuffer += String(digit);
+            renderQtyDisplay();
+        }
+        function clearQtyInput() {
+            quantityInputBuffer = '';
+            renderQtyDisplay();
+        }
+        function consumeSelectedQty() {
+            const qty = parseInt(quantityInputBuffer || '1', 10);
+            clearQtyInput();
+            if (!Number.isFinite(qty) || qty <= 0) return 1;
+            return Math.min(qty, 200);
         }
         function startTableTimerTicker() {
             if (tableTimerInterval) clearInterval(tableTimerInterval);
@@ -1010,29 +1086,38 @@
                         btn.innerHTML = `${escapeHTML(item.name)} <br><span>TÜKENDİ</span>`; 
                     } else { 
                         btn.innerHTML = `${escapeHTML(item.name)} <span>${item.price} TL</span>`; 
-                        btn.onclick = () => addToOrder(item); 
+                        btn.onclick = () => addToOrder(item, consumeSelectedQty()); 
                     }
                     container.appendChild(btn);
                 }
             });
         }
         
-        function addToOrder(item) {
+        function addToOrder(item, quantity = 1) {
             if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
             const [zone, tId] = activeTable.split('-');
+            const qty = Math.min(200, Math.max(1, parseInt(quantity, 10) || 1));
             const now = Date.now();
-            const createdDate = new Date(now).toLocaleDateString('tr-TR');
-            const createdTime = new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const ensureStartPromise = db.ref(`masalar_v7/${zone}/${tId}`).update({ startedAt: now });
 
-            ensureStartPromise.then(() => db.ref(`masalar_v7/${zone}/${tId}/orders`).push({
-                name: item.name,
-                price: item.price,
-                createdAt: now,
-                createdDate,
-                createdTime,
-                status: 'active'
-            }))
+            ensureStartPromise.then(() => {
+                const orderRef = db.ref(`masalar_v7/${zone}/${tId}/orders`);
+                const writes = [];
+                for (let i = 0; i < qty; i++) {
+                    const createdAt = Date.now() + i;
+                    const createdDate = new Date(createdAt).toLocaleDateString('tr-TR');
+                    const createdTime = new Date(createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    writes.push(orderRef.push({
+                        name: item.name,
+                        price: item.price,
+                        createdAt,
+                        createdDate,
+                        createdTime,
+                        status: 'active'
+                    }));
+                }
+                return Promise.all(writes);
+            })
                 .then(() => {
                     recalculateTotal(zone, tId);
                     if (window.innerWidth <= 1200) {
@@ -1047,6 +1132,21 @@
                 })
                 .catch(err => alert("Hata (Bağlantı kopuk olabilir): " + err.message));
         }
+
+        document.addEventListener('keydown', (evt) => {
+            if (currentUserRole !== 'garson') return;
+            const activeTag = ((document.activeElement && document.activeElement.tagName) || '').toLowerCase();
+            if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+            if (/^\d$/.test(evt.key)) {
+                appendQtyDigit(evt.key);
+                evt.preventDefault();
+                return;
+            }
+            if (evt.key === 'Backspace' || evt.key.toLowerCase() === 'c') {
+                clearQtyInput();
+                evt.preventDefault();
+            }
+        });
         
         function returnOrder(orderKey) {
             if(!activeTable) return;

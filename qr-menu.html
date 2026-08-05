@@ -112,7 +112,8 @@
             "Burgerler",
             "Beyaz Et",
             "Kırmızı Et",
-            "Aperatifler"
+            "Aperatifler",
+            "Çerezler"
         ];
         let currentCategory = '';
         let currentLang = localStorage.getItem('qrMenuLang') || 'tr';
@@ -136,7 +137,8 @@
                 Burgerler: 'Burgers',
                 'Beyaz Et': 'White Meat',
                 'Kırmızı Et': 'Red Meat',
-                Aperatifler: 'Appetizers'
+                Aperatifler: 'Appetizers',
+                'Çerezler': 'Nuts & Extras'
             }
         };
         const englishPhraseMap = {
@@ -336,7 +338,8 @@
                 const translatedDesc = translateMenuText(item.desc || '');
                 const text = `${translatedName} ${translatedDesc}`.toLowerCase();
                 const categoryMatch = item.category === currentCategory;
-                return categoryMatch && (!searchQuery || text.includes(searchQuery));
+                const hiddenInQr = item.hiddenInQr === true || item.hiddenInQr === 'true';
+                return !hiddenInQr && categoryMatch && (!searchQuery || text.includes(searchQuery));
             });
 
             if (items.length === 0) {
