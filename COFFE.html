@@ -43,13 +43,14 @@
         .table-time { opacity: 0.95; }
         .table-price { opacity: 0.95; }
         
-        .order-section, .admin-content { flex: 1; display: flex; flex-direction: column; padding: 20px; background: var(--bg-color); position: relative; overflow: hidden; min-height: 0; }
+        .order-section, .admin-content { flex: 1; display: flex; flex-direction: column; padding: 20px; background: var(--bg-color); position: relative; overflow-y: auto; overflow-x: hidden; min-height: 0; }
         .empty-order-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); display: flex; align-items: center; justify-content: center; z-index: 50; flex-direction: column; color: #64748b; }
         
         .admin-nav-btn { background: transparent; border: none; color: #cbd5e1; padding: 15px; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 8px; margin-bottom: 5px; transition: 0.3s; }
         .admin-nav-btn:hover, .admin-nav-btn.active { background: var(--primary); color: white; }
         .admin-panel-section { display: none; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
         .admin-panel-section.active { display: block; }
+        #tab-menu { max-height: 100%; overflow-y: auto; min-height: 0; }
         
         .dashboard-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
         .stat-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
@@ -898,6 +899,23 @@
             const secs = totalSec % 60;
             return [hrs, mins, secs].map(v => v.toString().padStart(2, '0')).join(':');
         }
+        function formatOrderDateTime(order) {
+            if (!order) return '';
+            if (order.createdDate && order.createdTime) return `${order.createdDate} / ${order.createdTime}`;
+            if (!order.createdAt) return '';
+            const d = new Date(Number(order.createdAt));
+            if (Number.isNaN(d.getTime())) return '';
+            const dateText = d.toLocaleDateString('tr-TR');
+            const timeText = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return `${dateText} / ${timeText}`;
+        }
+        function calculateActiveOrdersTotal(ordersObj) {
+            if (!ordersObj) return 0;
+            return Object.values(ordersObj).reduce((sum, o) => {
+                if (!o || o.status === 'returned') return sum;
+                return sum + Number(o.price || 0);
+            }, 0);
+        }
         function initPOSCategories() {
             if(currentUserRole !== 'garson') return;
             const posCats = document.getElementById('posCategories'); if(!posCats) return;
@@ -914,6 +932,7 @@
             for(let i=1; i<=zoneConfigs[activeZone]; i++) {
                 const tableData = tables[i] || { orders: false, total: 0, note: "", startedAt: null };
                 const isOccupied = !!tableData.orders;
+                const activeTotal = calculateActiveOrdersTotal(tableData.orders);
                 const elapsedText = tableData.startedAt ? formatElapsed(Date.now() - Number(tableData.startedAt)) : '';
                 const btn = document.createElement('button'); btn.className = 'table-btn ' + (isOccupied ? 'occupied' : 'empty');
                 if(activeTable === `${activeZone}-${i}`) btn.classList.add('active');
@@ -921,7 +940,7 @@
                     <div class="table-name">Masa ${i}</div>
                     <div class="table-meta">
                         <span class="table-time">${isOccupied ? elapsedText : ''}</span>
-                        <span class="table-price">${isOccupied ? tableData.total + ' TL' : ''}</span>
+                        <span class="table-price">${isOccupied ? activeTotal + ' TL' : ''}</span>
                     </div>
                 `;
                 btn.onclick = () => selectTable(activeZone, i); container.appendChild(btn);
@@ -1001,14 +1020,17 @@
         function addToOrder(item) {
             if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
             const [zone, tId] = activeTable.split('-');
-            const tableData = ((globalTablesData[zone] || {})[tId]) || {};
             const now = Date.now();
-            const ensureStartPromise = tableData.startedAt ? Promise.resolve() : db.ref(`masalar_v7/${zone}/${tId}`).update({ startedAt: now });
+            const createdDate = new Date(now).toLocaleDateString('tr-TR');
+            const createdTime = new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const ensureStartPromise = db.ref(`masalar_v7/${zone}/${tId}`).update({ startedAt: now });
 
             ensureStartPromise.then(() => db.ref(`masalar_v7/${zone}/${tId}/orders`).push({
                 name: item.name,
                 price: item.price,
                 createdAt: now,
+                createdDate,
+                createdTime,
                 status: 'active'
             }))
                 .then(() => {
@@ -1049,7 +1071,10 @@
                         time: returnedTime,
                         price: order.price
                     }))
-                    .then(() => recalculateTotal(zone, tId));
+                    .then(() => recalculateTotal(zone, tId))
+                    .then(() => {
+                        if (activeTable === `${zone}-${tId}`) renderOrders();
+                    });
             }).catch(err => alert('İade işlemi başarısız: ' + err.message));
         }
 
@@ -1066,27 +1091,33 @@
                     db.ref('ikram_v7').push().set({ item: order.name, table: `${zone}-${tId}`, date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('tr-TR') });
                     const safeName = order.name.replace(/[.#$\[\]]/g, '');
                     db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
-                    db.ref(`masalar_v7/${zone}/${tId}/orders/${orderKey}`).remove().then(() => recalculateTotal(zone, tId));
+                    db.ref(`masalar_v7/${zone}/${tId}/orders/${orderKey}`)
+                        .remove()
+                        .then(() => recalculateTotal(zone, tId))
+                        .then(() => {
+                            if (activeTable === `${zone}-${tId}`) renderOrders();
+                        });
                 }
             });
         }
 
         function recalculateTotal(zone, tId) {
-            db.ref(`masalar_v7/${zone}/${tId}/orders`).once('value').then(snap => {
+            return db.ref(`masalar_v7/${zone}/${tId}/orders`).once('value').then(snap => {
                 let total = 0; 
                 if(snap.val()) {
                     Object.values(snap.val()).forEach(o => {
                         if(o && o.status !== 'returned') total += Number(o.price || 0);
                     });
                 }
-                db.ref(`masalar_v7/${zone}/${tId}`).update({ total: total, orders: snap.val() || false });
+                return db.ref(`masalar_v7/${zone}/${tId}`).update({ total: total, orders: snap.val() || false });
             });
         }
 
         function renderOrders() {
             const container = document.getElementById('orderList'); container.innerHTML = '';
             const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId] || {};
-            document.getElementById('totalAmount').innerText = tableData.total || 0;
+            const visibleTotal = calculateActiveOrdersTotal(tableData.orders);
+            document.getElementById('totalAmount').innerText = visibleTotal;
             if(!tableData.orders) { container.innerHTML = '<div style="text-align:center; padding:20px;">Sipariş yok.</div>'; return; }
             Object.keys(tableData.orders).forEach(key => {
                 const order = tableData.orders[key];
@@ -1094,9 +1125,11 @@
                 const returnedBadge = isReturned ? `<span class="returned-badge">İADE</span>` : '';
                 const returnButton = isReturned ? '' : `<button class="return-btn" onclick="returnOrder('${key}')">İade Et</button>`;
                 const giftButton = isReturned ? '' : `<button class="gift-btn" onclick="giftOrder('${key}')">🎁 İkram</button>`;
+                const orderDateTime = formatOrderDateTime(order);
+                const timeBadge = orderDateTime ? `<small style="display:block; margin-top:4px; color:#64748b; font-weight:600;">${escapeHTML(orderDateTime)}</small>` : '';
                 container.innerHTML += `
                     <div class="order-item ${isReturned ? 'returned' : ''}">
-                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}</span>
+                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${timeBadge}</span>
                         <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
                             <span style="color:var(--primary); font-weight:bold;">${order.price} TL</span>
                             ${giftButton}
@@ -1115,6 +1148,8 @@
         function printBill() {
             if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
             if(!tableData || !tableData.orders) return alert("Sipariş yok!");
+            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+            tableData.total = activeTotal;
             document.getElementById('r-date').innerText = new Date().toLocaleString('tr-TR'); document.getElementById('r-table').innerText = `${zone.toUpperCase()} - MASA ${tId}`; document.getElementById('r-note').innerText = tableData.note ? `Not: ${escapeHTML(tableData.note)}` : "";
             const rc = document.getElementById('r-items'); rc.innerHTML = ''; const grouped = {};
             Object.values(tableData.orders).forEach(o => {
@@ -1122,19 +1157,23 @@
                 if(grouped[o.name]) { grouped[o.name].count++; grouped[o.name].total += o.price; } else { grouped[o.name] = { count: 1, total: o.price }; }
             });
             for(const [name, data] of Object.entries(grouped)) { rc.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom: 5px;"><span>${data.count}x ${escapeHTML(name)}</span><span>${data.total} TL</span></div>`; }
-            document.getElementById('r-total').innerText = `TOPLAM: ${tableData.total} TL`; window.print();
+            document.getElementById('r-total').innerText = `TOPLAM: ${activeTotal} TL`; window.print();
         }
 
         function payBill(paymentType) {
             if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
             if(!tableData.orders) return;
-            if(confirm(`Toplam ${tableData.total} TL, ${paymentType} olarak kapatılacak. Onaylıyor musunuz?`)) { processPayment(zone, tId, tableData, paymentType, null); }
+            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+            tableData.total = activeTotal;
+            if(confirm(`Toplam ${activeTotal} TL, ${paymentType} olarak kapatılacak. Onaylıyor musunuz?`)) { processPayment(zone, tId, tableData, paymentType, null); }
         }
 
         function openPartialPayModal() {
             if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
             if(!tableData || !tableData.orders) return alert("Hesap boş!");
-            document.getElementById('partialTotalAmt').innerText = tableData.total; document.getElementById('partialCashInput').value = ''; document.getElementById('partialCCAmt').innerText = '0'; document.getElementById('partialPayModal').style.display = 'flex';
+            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+            tableData.total = activeTotal;
+            document.getElementById('partialTotalAmt').innerText = activeTotal; document.getElementById('partialCashInput').value = ''; document.getElementById('partialCCAmt').innerText = '0'; document.getElementById('partialPayModal').style.display = 'flex';
         }
         function closePartialPayModal() { document.getElementById('partialPayModal').style.display = 'none'; }
         function calcPartial() {
@@ -1150,6 +1189,8 @@
 
         function processPayment(zone, tId, tableData, paymentType, partialDetails) {
             const dateKey = new Date().toISOString().split('T')[0];
+            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+            tableData.total = activeTotal;
             const soldOrders = {};
             Object.entries(tableData.orders).forEach(([key, order]) => {
                 if(order && order.status === 'returned') return;
@@ -1157,7 +1198,7 @@
                 const safeName = order.name.replace(/[.#$\[\]]/g, '');
                 db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
             });
-            let reportObj = { table: `${zone}-${tId}`, total: tableData.total, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders };
+            let reportObj = { table: `${zone}-${tId}`, total: activeTotal, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders };
             if(partialDetails) reportObj.details = partialDetails;
             db.ref(`reports_v7/${dateKey}`).push().set(reportObj).then(() => { db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null }); closeOrderScreen(); });
         }
