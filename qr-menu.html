@@ -183,6 +183,8 @@
             const descHTML = item.desc ? `<div class="item-desc">${escapeHTML(item.desc)}</div>` : '';
             const badgeHTML = isOutOfStock ? `<span class="out-badge">TÜKENDİ</span>` : '';
             const priceText = item.price ? escapeHTML(item.price.toString()) : '0';
+            const imageURL = (item.image || '').trim();
+            const imageHTML = imageURL ? `<img class="item-img" src="${escapeHTML(imageURL)}" alt="${escapeHTML(item.name || 'Ürün')}" loading="lazy">` : '';
 
             return `
                 <div class="menu-item ${isOutOfStock ? 'out-of-stock' : ''}">
@@ -191,6 +193,7 @@
                         ${descHTML}
                         <div class="item-price">${priceText} TL</div>
                     </div>
+                    ${imageHTML}
                 </div>
             `;
         }

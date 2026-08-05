@@ -257,6 +257,18 @@
                         <button id="cancelBtn" style="display:none; background:var(--danger); color:white; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="cancelEdit()">İptal</button>
                     </div>
                 </div>
+
+                <div class="add-product-card" style="margin-top: 12px; border-style: solid;">
+                    <h3>🖼️ Toplu Görsel Ekle / Güncelle</h3>
+                    <p style="margin-top:0; color:#64748b; font-size:13px;">
+                        Her satıra <b>Ürün Adı|Görsel URL</b> yazın. Örn: <i>Hamburger|https://site.com/hamburger.jpg</i>
+                    </p>
+                    <textarea id="bulkImageInput" placeholder="Hamburger|https://...\nCheese Burger|https://..." style="width:100%; min-height:120px; border:1px solid var(--light); border-radius:8px; padding:10px; font-size:13px; resize:vertical;"></textarea>
+                    <div style="margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <button style="background:var(--blue); color:white; border:none; padding:10px 18px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="bulkUpdateImages()">Toplu Görselleri Kaydet</button>
+                        <button style="background:#64748b; color:white; border:none; padding:10px 18px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="document.getElementById('bulkImageInput').value=''">Alanı Temizle</button>
+                    </div>
+                </div>
                 <table><thead><tr><th>Ürün Adı & Açıklama</th><th>Fiyat</th><th>Kategori</th><th>Görsel</th><th>İşlem</th></tr></thead><tbody id="adminMenuTable"></tbody></table>
             </div>
 
@@ -638,6 +650,53 @@
             } else {
                 db.ref(`menu_v7/${'m' + Date.now()}`).set(productData).then(() => { alert("Yeni ürün menüye eklendi!"); cancelEdit(); }).catch(e => alert("Hata: " + e.message));
             }
+        }
+
+        function bulkUpdateImages() {
+            const raw = document.getElementById('bulkImageInput').value.trim();
+            if(!raw) return alert('Lütfen en az bir satır girin.');
+
+            const entries = Object.entries(globalMenuData || {});
+            if(entries.length === 0) return alert('Menü verisi bulunamadı. Önce menüyü yükleyin.');
+
+            const updates = {};
+            const notFound = [];
+            let validRows = 0;
+
+            raw.split('\n').forEach((line, idx) => {
+                const row = line.trim();
+                if(!row) return;
+
+                const match = row.match(/^(.+?)[|\t;](https?:\/\/\S+)$/i);
+                if(!match) {
+                    notFound.push(`Satır ${idx + 1}: format hatalı`);
+                    return;
+                }
+
+                const inputName = match[1].trim().toLowerCase();
+                const imageUrl = match[2].trim();
+                const found = entries.find(([, item]) => (item.name || '').trim().toLowerCase() === inputName);
+
+                if(!found) {
+                    notFound.push(`Bulunamadı: ${match[1].trim()}`);
+                    return;
+                }
+
+                const key = found[0];
+                updates[`${key}/image`] = imageUrl;
+                validRows++;
+            });
+
+            if(validRows === 0) {
+                return alert('Geçerli eşleşme bulunamadı. Formatı kontrol edin: Ürün Adı|https://...');
+            }
+
+            db.ref('menu_v7').update(updates)
+                .then(() => {
+                    const failText = notFound.length ? `\n\nEşleşmeyen/Hatalı satırlar:\n- ${notFound.join('\n- ')}` : '';
+                    alert(`✅ ${validRows} ürün görseli güncellendi.${failText}`);
+                })
+                .catch(e => alert('Hata: ' + e.message));
         }
 
         function editProduct(key) {
