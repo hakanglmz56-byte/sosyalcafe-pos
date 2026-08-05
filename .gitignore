@@ -1,3 +1,5 @@
 # Netlify deploy repo
 node_modules
 .DS_Store
+backups/
+logs/
