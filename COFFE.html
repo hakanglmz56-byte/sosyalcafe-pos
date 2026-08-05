@@ -14,6 +14,8 @@
             --dark: #334155; --light: #e2e8f0; --success: #10b981; 
             --danger: #ef4444; --text-light: #f8fafc; --blue: #3b82f6; --purple: #8b5cf6;
         }
+        html, body, * { box-sizing: border-box; }
+        html { overflow-x: hidden; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; background: var(--bg-color); display: flex; height: 100vh; overflow: hidden; }
         
         .login-screen { position: absolute; width: 100%; height: 100%; background: var(--bg-color); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
@@ -59,7 +61,8 @@
         .order-left-panel { background: white; border-radius: 18px; padding: 18px; box-shadow: 0 15px 40px rgba(15,23,42,0.06); min-height: 0; }
         .order-right-panel { background: white; border-radius: 18px; padding: 18px; box-shadow: 0 15px 40px rgba(15,23,42,0.06); min-height: 0; }
         .order-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-        .order-header .btn-back, .order-header .btn-move { padding: 12px 16px; border: 1px solid var(--light); background: white; border-radius: 12px; cursor: pointer; color: var(--dark); font-weight: 700; }
+        .order-header .btn-back, .order-header .btn-move, .order-header .btn-show-orders { padding: 12px 16px; border: 1px solid var(--light); background: white; border-radius: 12px; cursor: pointer; color: var(--dark); font-weight: 700; }
+        .order-header .btn-show-orders { display: none; background: var(--primary); color: white; border-color: var(--primary); }
         .order-header h2 { margin: 0; font-size: 22px; color: var(--dark); }
         .order-search { display: flex; gap: 10px; margin-bottom: 10px; }
         .order-search input { flex: 1; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--light); outline: none; font-size: 14px; }
@@ -110,6 +113,65 @@
         .add-product-card h3 { margin-top: 0; color: var(--dark); font-size: 16px; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px; }
         .form-grid input, .form-grid select { padding: 12px; border-radius: 8px; border: 1px solid var(--light); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
+
+        @media (max-width: 1200px) {
+            body { display: block; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
+            .pos-container, .admin-container { width: 100%; height: auto; display: flex; flex-direction: column; }
+            .tables-sidebar, .admin-sidebar { width: 100%; max-width: 100%; padding: 16px; }
+            .order-section { width: 100%; max-width: 100%; overflow: visible; }
+            .order-main-layout { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+            .order-left-panel, .order-right-panel { width: 100%; max-width: 100%; min-height: auto; overflow: visible; }
+            .order-item { grid-template-columns: 1fr; }
+            .order-list { max-height: 55vh; overflow-y: auto; }
+            .order-search { flex-direction: column; }
+            .order-search input, .order-search button { width: 100%; }
+            .menu-panel { width: 100%; }
+            .menu-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+            .order-header .btn-show-orders { display: block; width: 100%; }
+            .table-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+            .table-btn { width: 100%; min-width: 0; padding: 14px 10px; font-size: 14px; }
+            .zone-btn { flex: 1 1 48%; min-width: 0; }
+            .cat-btn { padding: 9px 14px; font-size: 12px; }
+            .action-bar { flex-direction: column; align-items: stretch; }
+            .action-btns { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+            .action-btns button { width: 100%; margin-left: 0; }
+            .table-note-box { flex-direction: column; }
+            .table-note-box button { width: 100%; }
+            .order-item { grid-template-columns: 1fr; gap: 10px; }
+            .modal-box { width: 100%; max-width: 100%; }
+            .tables-sidebar { max-height: 45vh; overflow-y: auto; }
+            .order-list { max-height: 45vh; overflow-y: auto; }
+        }
+
+        @media (max-width: 768px) {
+            .login-box { width: min(92%, 380px); padding: 26px; }
+            .login-box h1 { font-size: 28px; }
+            .login-box input { font-size: 20px; width: 100%; }
+            .login-box button { width: 100%; padding: 14px 18px; }
+            .brand-title { font-size: 22px; }
+            .zone-tabs { gap: 6px; justify-content: space-between; }
+            .menu-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+            .category-tabs { gap: 8px; padding-bottom: 10px; }
+            .cat-btn { padding: 8px 12px; font-size: 12px; }
+            .table-btn { padding: 12px; font-size: 13px; }
+            .order-header { flex-direction: column; align-items: stretch; }
+            .order-header .btn-back, .order-header .btn-move { width: 100%; }
+            .order-header h2 { font-size: 20px; }
+            .table-note-box input { width: 100%; }
+            .action-bar { padding: 12px; }
+            .action-btns { flex-direction: column; align-items: stretch; }
+            .action-btns button { width: 100%; }
+            .order-list, .menu-panel, .order-right-panel { overflow: visible; }
+            .order-main-layout { gap: 18px; }
+            .dashboard-cards { grid-template-columns: 1fr; }
+            .order-list { padding: 12px; }
+            .table-note-box { gap: 8px; }
+            .admin-sidebar, .tables-sidebar { padding: 14px; }
+            .admin-panel-section { padding: 16px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .menu-item-btn { min-width: auto; }
+            .tables-sidebar { max-height: none; }
+        }
 
         @media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 80mm; font-family: monospace; font-size: 12px; display: block !important; padding: 10px; } }
         #receipt-print-area { display: none; }
@@ -240,6 +302,7 @@
                     <div class="order-header">
                         <button class="btn-back" onclick="closeOrderScreen()">🔙 Masalara Dön</button>
                         <h2 id="activeTableTitle">Masa Seçilmedi</h2>
+                        <button class="btn-show-orders" onclick="scrollOrderListIntoViewIfMobile()">🧾 Siparişleri Göster</button>
                         <button class="btn-move" onclick="openMoveModal()">🔄 Masa Taşı</button>
                     </div>
                     <div class="order-search">
@@ -452,9 +515,17 @@
                 const sifreler = snap.val() || { garson: "1453", admin: "2026" };
                 
                 if (pin === sifreler.garson) {
-                    currentUserRole = 'garson'; document.getElementById('loginScreen').style.display = 'none'; document.getElementById('posContainer').style.display = 'flex'; initPOS();
+                    currentUserRole = 'garson';
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('adminContainer').style.display = 'none';
+                    document.getElementById('posContainer').style.display = 'flex';
+                    initPOS();
                 } else if (pin === sifreler.admin) {
-                    currentUserRole = 'admin'; document.getElementById('loginScreen').style.display = 'none'; document.getElementById('adminContainer').style.display = 'flex'; switchAdminTab('raporlar');
+                    currentUserRole = 'admin';
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('posContainer').style.display = 'none';
+                    document.getElementById('adminContainer').style.display = 'flex';
+                    switchAdminTab('raporlar');
                 } else { alert("Hatalı PIN!"); document.getElementById('pinInput').value = ""; }
             }).catch(err => alert("Bağlantı hatası: Sisteme erişilemiyor. Lütfen internetinizi veya Firebase kurallarını kontrol edin."));
         }
@@ -712,6 +783,7 @@
             Object.keys(zoneConfigs).forEach(zone => { zContainer.innerHTML += `<button class="zone-btn ${zone === activeZone ? 'active' : ''}" onclick="changeZone('${zone}', event)">${zone}</button>`; });
             initPOSCategories(); 
             renderTables();
+            renderPOSMenu();
             updateOrderScreenVisibility();
         }
         function initPOSCategories() {
@@ -736,6 +808,21 @@
             }
         }
         
+        function scrollOrderListIntoView() {
+            const orderList = document.getElementById('orderList');
+            if (!orderList) return;
+            orderList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            orderList.scrollTop = orderList.scrollHeight;
+        }
+
+        function scrollOrderListIntoViewIfMobile() {
+            if (window.innerWidth > 1200) return;
+            const orderList = document.getElementById('orderList');
+            if (!orderList) return;
+            const rect = orderList.getBoundingClientRect();
+            window.scrollTo({ top: window.pageYOffset + rect.top - 20, behavior: 'smooth' });
+        }
+
         function selectTable(zone, tId) {
             activeTable = `${zone}-${tId}`;
             document.getElementById('emptyOrderScreen').style.display = 'none';
@@ -744,6 +831,7 @@
             document.getElementById('tableNoteInput').value = tableData.note || "";
             updateOrderScreenVisibility();
             renderTables(); renderPOSMenu(); renderOrders();
+            setTimeout(scrollOrderListIntoViewIfMobile, 120);
         }
         function closeOrderScreen() {
             activeTable = null;
@@ -761,12 +849,14 @@
             const orderList = document.getElementById('orderList');
             const noteBox = document.querySelector('.table-note-box');
             const actionBar = document.querySelector('.action-bar');
-            if (orderLayout) orderLayout.style.display = show ? 'grid' : 'none';
-            if (categoryRow) categoryRow.style.display = show ? 'flex' : 'none';
-            if (menuContainer) menuContainer.style.display = show ? 'grid' : 'none';
-            if (orderList) orderList.style.display = show ? 'block' : 'none';
-            if (noteBox) noteBox.style.display = show ? 'flex' : 'none';
-            if (actionBar) actionBar.style.display = show ? 'flex' : 'none';
+            const showOrdersBtn = document.querySelector('.btn-show-orders');
+            if (orderLayout) orderLayout.style.display = show ? '' : 'none';
+            if (categoryRow) categoryRow.style.display = show ? '' : 'none';
+            if (menuContainer) menuContainer.style.display = show ? '' : 'none';
+            if (orderList) orderList.style.display = show ? '' : 'none';
+            if (noteBox) noteBox.style.display = show ? '' : 'none';
+            if (actionBar) actionBar.style.display = show ? '' : 'none';
+            if (showOrdersBtn) showOrdersBtn.style.display = show && window.innerWidth <= 1200 ? '' : 'none';
         }
         function filterCategory(cat, evt) { currentCategory = cat; document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active')); if(evt && evt.currentTarget) evt.currentTarget.classList.add('active'); renderPOSMenu(); }
         
@@ -792,7 +882,18 @@
             if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
             const [zone, tId] = activeTable.split('-');
             db.ref(`masalar_v7/${zone}/${tId}/orders`).push({ name: item.name, price: item.price })
-                .then(() => recalculateTotal(zone, tId))
+                .then(() => {
+                    recalculateTotal(zone, tId);
+                    if (window.innerWidth <= 1200) {
+                        setTimeout(() => {
+                            const orderList = document.getElementById('orderList');
+                            if (orderList) {
+                                orderList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                window.scrollTo({ top: document.documentElement.scrollTop + orderList.getBoundingClientRect().top - 20, behavior: 'smooth' });
+                            }
+                        }, 120);
+                    }
+                })
                 .catch(err => alert("Hata (Bağlantı kopuk olabilir): " + err.message));
         }
         
@@ -829,6 +930,7 @@
                 const order = tableData.orders[key];
                 container.innerHTML += `<div class="order-item"><span>${escapeHTML(order.name)}</span><div><span style="color:var(--primary); font-weight:bold; margin-right:15px;">${order.price} TL</span><button class="gift-btn" onclick="giftOrder('${key}', '${escapeHTML(order.name)}')">🎁 İkram</button><button class="delete-btn" onclick="removeOrder('${key}')">Sil</button></div></div>`;
             });
+            setTimeout(scrollOrderListIntoViewIfMobile, 100);
         }
 
         function saveTableNote() {
