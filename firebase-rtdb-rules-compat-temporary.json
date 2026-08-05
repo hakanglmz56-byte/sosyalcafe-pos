@@ -1,0 +1,67 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "menu_v7": {
+      ".read": true,
+      "$itemId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['name', 'price', 'category']) && newData.child('name').isString() && newData.child('name').val().length <= 120 && newData.child('price').isNumber() && newData.child('price').val() >= 0 && newData.child('price').val() <= 100000 && newData.child('category').isString()"
+      }
+    },
+
+    "stock_v7": {
+      ".read": true,
+      "$safeName": {
+        ".write": true,
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+      }
+    },
+
+    "masalar_v7": {
+      ".read": true,
+      "$zone": {
+        "$tableId": {
+          ".write": true,
+          "orders": {
+            "$orderId": {
+              ".validate": "newData.hasChildren(['name', 'price']) && newData.child('name').isString() && newData.child('name').val().length <= 120 && newData.child('price').isNumber() && newData.child('price').val() >= 0 && newData.child('price').val() <= 100000"
+            }
+          },
+          "total": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          }
+        }
+      }
+    },
+
+    "ikram_v7": {
+      ".read": false,
+      ".write": true
+    },
+
+    "reports_v7": {
+      ".read": false,
+      ".write": true
+    },
+
+    "ayarlar_v7": {
+      "sifreler": {
+        ".read": true,
+        ".write": false
+      },
+      "masaSayilari": {
+        ".read": true,
+        ".write": true
+      },
+      "$other": {
+        ".read": false,
+        ".write": false
+      }
+    }
+  }
+}
