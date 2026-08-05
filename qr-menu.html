@@ -358,9 +358,7 @@
             const badgeHTML = isOutOfStock ? `<span class="out-badge">${escapeHTML(getLabel('out'))}</span>` : '';
             const priceText = item.price ? escapeHTML(item.price.toString()) : '0';
             const imageURL = (item.image || item.img || '').trim();
-            const fallbackImage = '/qr-assets/qr-menu.png';
-            const finalImage = imageURL || fallbackImage;
-            const imageHTML = `<img class="item-img" src="${escapeHTML(finalImage)}" alt="${escapeHTML(translatedName || 'Product')}" loading="lazy" onerror="this.onerror=null;this.src='${fallbackImage}';">`;
+            const imageHTML = imageURL ? `<img class="item-img" src="${escapeHTML(imageURL)}" alt="${escapeHTML(translatedName || 'Product')}" loading="lazy">` : '';
 
             return `
                 <div class="menu-item ${isOutOfStock ? 'out-of-stock' : ''}">
