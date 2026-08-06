@@ -246,10 +246,12 @@
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div><h3 style="color: var(--dark);">🔥 En Çok Satanlar</h3><div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Ürün Adı</th><th>Adet</th><th>Kazanç</th></tr></thead><tbody id="reportsProductsTableBody"></tbody></table></div></div>
-                    <div><h3 style="color: var(--dark);">🎁 İkram & İptaller</h3><div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Ürün Adı</th><th>Tarih</th><th>Masa</th></tr></thead><tbody id="reportsGiftsTableBody"></tbody></table></div></div>
+                    <div><h3 style="color: var(--dark);">🎁 İkram & İptaller</h3><div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Ürün Adı</th><th>Tarih</th><th>Masa</th><th>Personel</th></tr></thead><tbody id="reportsGiftsTableBody"></tbody></table></div></div>
                 </div>
+                <h3 style="color: var(--dark);">👥 Personel Performansı</h3>
+                <div style="max-height: 260px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px; margin-bottom: 30px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Personel</th><th>Satış Adedi</th><th>Satış Tutarı</th><th>İade/İkram</th></tr></thead><tbody id="reportsPersonelTableBody"></tbody></table></div>
                 <h3 style="color: var(--dark);">Detaylı Adisyon Dökümü</h3>
-                <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px;"><table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Tarih / Saat</th><th>Masa</th><th>Ödeme Tipi</th><th>Tutar</th></tr></thead><tbody id="reportsTableBody"></tbody></table></div>
+                <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--light); border-radius: 8px;">                <table style="margin-top: 0;"><thead style="position: sticky; top: 0;"><tr><th>Tarih / Saat</th><th>Masa</th><th>Ödeme Tipi</th><th>Personel</th><th>Tutar</th></tr></thead><tbody id="reportsTableBody"></tbody></table></div>
             </div>
 
             <div class="admin-panel-section" id="tab-menu">
@@ -406,7 +408,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
 
-        let globalMenuData = {}; let globalStockData = {}; let currentUserRole = null;
+        let globalMenuData = {}; let globalStockData = {}; let currentUserRole = null; let currentUserEmail = '';
         let activeZone = 'Salon', activeTable = null; let globalTablesData = {};
         let zoneConfigs = { 'Salon': 20, 'Okey': 15, 'Orta Salon': 10, 'Bahçe': 25 };
         const menuCategories = [
@@ -610,6 +612,7 @@
             errBox.innerText = '';
             firebase.auth().signInWithEmailAndPassword(email, password)
                 .then(userCredential => {
+                    currentUserEmail = userCredential.user.email || email;
                     return userCredential.user.getIdTokenResult();
                 })
                 .then(idTokenResult => {
@@ -641,6 +644,7 @@
 
         function logout() {
             currentUserRole = null;
+            currentUserEmail = '';
             if (tableTimerInterval) {
                 clearInterval(tableTimerInterval);
                 tableTimerInterval = null;
@@ -661,6 +665,7 @@
         // QR menü ve POS: oturum yönetimi
         firebase.auth().onAuthStateChanged(user => {
             if (user) {
+                currentUserEmail = user.email || '';
                 user.getIdTokenResult().then(itr => {
                     const role = (itr.claims && itr.claims.role) || 'garson';
                     currentUserRole = role;
@@ -886,6 +891,19 @@
             const list = document.getElementById('currentZoneStatus'); list.innerHTML = '';
             Object.keys(zoneConfigs).forEach(zone => { list.innerHTML += `<li><b>${zone}:</b> ${zoneConfigs[zone]} Masa</li>`; });
         }
+        function renderPersonelReport(personelCounts) {
+            const tbody = document.getElementById('reportsPersonelTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const rows = Object.entries(personelCounts).sort((a, b) => b[1].saleTotal - a[1].saleTotal);
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4">Personel satış verisi yok.</td></tr>';
+                return;
+            }
+            rows.forEach(([name, data]) => {
+                tbody.innerHTML += `<tr><td style="color:var(--purple); font-weight:bold;">👤 ${escapeHTML(name)}</td><td>${data.saleCount}</td><td style="color:var(--success); font-weight:bold;">${data.saleTotal} TL</td><td style="color:var(--danger); font-weight:bold;">${data.wasteCount}</td></tr>`;
+            });
+        }
         function populateStockDropdown() {
             const select = document.getElementById('stockItemSelect'); const currentVal = select.value; select.innerHTML = '<option value="">-- Ürün Seçin --</option>';
             Object.values(globalMenuData).sort((a,b) => a.name.localeCompare(b.name)).forEach(item => { select.innerHTML += `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`; });
@@ -924,9 +942,9 @@
             const filter = document.getElementById('reportFilter').value; currentReportData = [];
             db.ref('reports_v7').once('value').then((snapshot) => {
                 const allData = snapshot.val();
-                let totalCiro = 0, totalNakit = 0, totalKredi = 0; let itemCounts = {};
-                const tbody = document.getElementById('reportsTableBody'); const productsTbody = document.getElementById('reportsProductsTableBody');
-                tbody.innerHTML = ''; productsTbody.innerHTML = '';
+                let totalCiro = 0, totalNakit = 0, totalKredi = 0; let itemCounts = {}; let personelCounts = {};
+                const tbody = document.getElementById('reportsTableBody'); const productsTbody = document.getElementById('reportsProductsTableBody'); const personelTbody = document.getElementById('reportsPersonelTableBody');
+                tbody.innerHTML = ''; productsTbody.innerHTML = ''; personelTbody.innerHTML = '';
                 if(allData) {
                     const today = new Date();
                     Object.keys(allData).forEach(dateKey => {
@@ -942,7 +960,12 @@
                                 if(r.type === 'Parçalı') { totalCiro += r.total; totalNakit += (r.details?.nakit || 0); totalKredi += (r.details?.kredi || 0); } 
                                 else { totalCiro += r.total; if(r.type === 'Nakit') totalNakit += r.total; if(r.type === 'Kredi Kartı') totalKredi += r.total; }
                                 currentReportData.push({date: dateKey, time: r.time, table: r.table, type: r.type, total: r.total});
-                                tbody.innerHTML += `<tr><td>${dateKey} <span style="color:#94a3b8">${r.time}</span></td><td>${r.table}</td><td><span style="padding:4px 8px; border-radius:4px; font-size:12px; color:white; background:${r.type==='Nakit'?'var(--success)':r.type==='Kredi Kartı'?'var(--blue)':'var(--purple)'}">${r.type}</span></td><td style="font-weight:bold;">${r.total} TL</td></tr>`;
+                                const persKey = (r.personel || 'bilinmeyen').split('@')[0].replace('.', ' ');
+                                if(!personelCounts[persKey]) personelCounts[persKey] = { saleCount: 0, saleTotal: 0, wasteCount: 0 };
+                                personelCounts[persKey].saleTotal += r.total;
+                                if(r.orders) personelCounts[persKey].saleCount += Object.values(r.orders).length;
+                                const pers = persKey;
+                                tbody.innerHTML += `<tr><td>${dateKey} <span style="color:#94a3b8">${r.time}</span></td><td>${r.table}</td><td><span style="padding:4px 8px; border-radius:4px; font-size:12px; color:white; background:${r.type==='Nakit'?'var(--success)':r.type==='Kredi Kartı'?'var(--blue)':'var(--purple)'}">${r.type}</span></td><td style="color:var(--purple); font-weight:700;">${escapeHTML(pers)}</td><td style="font-weight:bold;">${r.total} TL</td></tr>`;
                                 if(r.orders) {
                                     Object.values(r.orders).forEach(o => {
                                         if(itemCounts[o.name]) { itemCounts[o.name].count++; itemCounts[o.name].total += o.price; } else { itemCounts[o.name] = { count: 1, total: o.price }; }
@@ -966,12 +989,12 @@
 
                 const gifts = giftSnap.val() || {};
                 Object.values(gifts).forEach(g => {
-                    records.push({ type: 'IKRAM', item: g.item, date: g.date, time: g.time, table: g.table, color: 'var(--purple)' });
+                    records.push({ type: 'IKRAM', item: g.item, date: g.date, time: g.time, table: g.table, color: 'var(--purple)', personel: g.personel });
                 });
 
                 const returns = returnSnap.val() || {};
                 Object.values(returns).forEach(r => {
-                    records.push({ type: 'IADE', item: r.item, date: r.date, time: r.time, table: r.table, color: 'var(--danger)' });
+                    records.push({ type: 'IADE', item: r.item, date: r.date, time: r.time, table: r.table, color: 'var(--danger)', personel: r.personel });
                 });
 
                 const filtered = records.filter(rec => {
@@ -990,8 +1013,15 @@
                 }
 
                 filtered.forEach(rec => {
-                    tbody.innerHTML += `<tr><td style="font-weight:bold; color:${rec.color};">[${rec.type}] ${escapeHTML(rec.item || '-')}</td><td style="font-size:12px; color:#64748b;">${rec.date || '-'} ${rec.time || ''}</td><td>${rec.table || '-'}</td></tr>`;
+                    const pers = (rec.personel || '').split('@')[0].replace('.', ' ');
+                    if(rec.type === 'IADE') {
+                        const key = (rec.personel || 'bilinmeyen').split('@')[0].replace('.', ' ');
+                        if(!personelCounts[key]) personelCounts[key] = { saleCount: 0, saleTotal: 0, wasteCount: 0 };
+                        personelCounts[key].wasteCount++;
+                    }
+                    tbody.innerHTML += `<tr><td style="font-weight:bold; color:${rec.color};">[${rec.type}] ${escapeHTML(rec.item || '-')}</td><td style="font-size:12px; color:#64748b;">${rec.date || '-'} ${rec.time || ''}</td><td>${rec.table || '-'}</td><td style="color:var(--purple); font-size:12px;">${escapeHTML(pers || '-')}</td></tr>`;
                 });
+                renderPersonelReport(personelCounts);
             });
         }
 
@@ -1180,7 +1210,8 @@
                         createdAt,
                         createdDate,
                         createdTime,
-                        status: 'active'
+                        status: 'active',
+                        createdBy: currentUserEmail || 'bilinmeyen'
                     }));
                 }
                 return Promise.all(writes);
@@ -1230,13 +1261,14 @@
                 const returnedDate = new Date(returnedAt).toISOString().split('T')[0];
                 const returnedTime = new Date(returnedAt).toLocaleTimeString('tr-TR');
 
-                orderRef.update({ status: 'returned', returnedAt, returnedDate, returnedTime })
+                orderRef.update({ status: 'returned', returnedAt, returnedDate, returnedTime, returnedBy: currentUserEmail || 'bilinmeyen' })
                     .then(() => db.ref('iade_v7').push().set({
                         item: order.name,
                         table: `${zone}-${tId}`,
                         date: returnedDate,
                         time: returnedTime,
-                        price: order.price
+                        price: order.price,
+                        personel: currentUserEmail || 'bilinmeyen'
                     }))
                     .then(() => recalculateTotal(zone, tId))
                     .then(() => {
@@ -1255,7 +1287,7 @@
                 if(!order) return;
                 if(order.status === 'returned') return alert('İade edilmiş ürün ikram yapılamaz.');
                 if(confirm(`"${order.name}" ürününü hesaptan düşüp "İkram" olarak kaydetmek istiyor musunuz?`)) {
-                    db.ref('ikram_v7').push().set({ item: order.name, table: `${zone}-${tId}`, date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('tr-TR') });
+                    db.ref('ikram_v7').push().set({ item: order.name, table: `${zone}-${tId}`, date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('tr-TR'), personel: currentUserEmail || 'bilinmeyen' });
                     const safeName = order.name.replace(/[.#$\[\]]/g, '');
                     db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
                     db.ref(`masalar_v7/${zone}/${tId}/orders/${orderKey}`)
@@ -1293,10 +1325,11 @@
                 const returnButton = isReturned ? '' : `<button class="return-btn" onclick="returnOrder('${key}')">İade Et</button>`;
                 const giftButton = isReturned ? '' : `<button class="gift-btn" onclick="giftOrder('${key}')">🎁 İkram</button>`;
                 const orderDateTime = formatOrderDateTime(order);
+                const personBadge = order.createdBy ? `<small style="display:block; margin-top:2px; color:#8b5cf6; font-weight:700;">👤 ${escapeHTML(order.createdBy)}</small>` : '';
                 const timeBadge = orderDateTime ? `<small style="display:block; margin-top:4px; color:#64748b; font-weight:600;">${escapeHTML(orderDateTime)}</small>` : '';
                 container.innerHTML += `
                     <div class="order-item ${isReturned ? 'returned' : ''}">
-                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${timeBadge}</span>
+                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${timeBadge}${personBadge}</span>
                         <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
                             <span style="color:var(--primary); font-weight:bold;">${order.price} TL</span>
                             ${giftButton}
@@ -1466,6 +1499,7 @@
                 type: reportType,
                 time: meta.time,
                 orders: soldOrders,
+                personel: currentUserEmail || 'bilinmeyen',
                 details: { customer: name, nakit: cashNow, cari: debt }
             };
 
@@ -1510,6 +1544,7 @@
                         total: collected,
                         type: 'Cari Tahsilat',
                         time: meta.time,
+                        personel: currentUserEmail || 'bilinmeyen',
                         details: { customer: name, note: note || '' }
                     }))
                     .then(() => {
@@ -1541,7 +1576,7 @@
                 const safeName = order.name.replace(/[.#$\[\]]/g, '');
                 db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
             });
-            let reportObj = { table: `${zone}-${tId}`, total: activeTotal, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders };
+            let reportObj = { table: `${zone}-${tId}`, total: activeTotal, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders, personel: currentUserEmail || 'bilinmeyen' };
             if(partialDetails) reportObj.details = partialDetails;
             db.ref(`reports_v7/${dateKey}`).push().set(reportObj).then(() => { db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null }); closeOrderScreen(); });
         }
