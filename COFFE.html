@@ -242,6 +242,7 @@
                     <h2 style="margin: 0;">📊 Satış Analizleri</h2>
                     <div style="display:flex; gap:10px;">
                         <button style="background:var(--success); color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="exportToCSV()">📥 Excel (CSV) İndir</button>
+                        <button style="background:var(--danger); color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="runCleanup()">🧹 Test Verilerini Temizle</button>
                         <select id="reportFilter" onchange="loadAdminReports()" style="padding: 10px; border-radius: 8px; border: 1px solid var(--light); font-size: 15px; font-weight: bold;"><option value="daily">Bugün</option><option value="weekly">Bu Hafta</option><option value="monthly">Bu Ay</option><option value="yearly">Bu Yıl</option><option value="all">Tüm Zamanlar</option></select>
                     </div>
                 </div>
@@ -1102,6 +1103,23 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
+        async function runCleanup() {
+            if(!confirm('Bu işlem tüm test verilerini SİLECEK:\n\n• Satış raporları\n• İkram / iade kayıtları\n• Cari hesaplar ve ekstreler\n• Stok kayıtları\n• Masalar sıfırlanacak (eski cari kalıntıları dahil)\n\nMENÜ ve AYARLAR korunur.\nMağaza başlangıcı için temiz başlangıç yapılacak. Emin misiniz?')) return;
+            if(!confirm('SON UYARI: Bu işlem GERİ ALINAMAZ. Tüm geçmiş veriler kalıcı olarak silinecek. Devam etmek istiyor musunuz?')) return;
+            try {
+                const data = await callPersonel('POST', { action: 'cleanup' });
+                let msg = '✅ Temizlik tamamlandı.\n\n';
+                if(data.silinecekler) msg += JSON.stringify(data.silinecekler);
+                if(data.silinen) msg += '• Silinen veriler: ' + Object.keys(data.silinen).join(', ') + '\n';
+                if(data.cariOnarilan !== undefined) msg += '• Onarılan eski cari masa: ' + data.cariOnarilan + '\n';
+                if(data.masaSifirlanan !== undefined) msg += '• Sıfırlanan masa sayısı: ' + data.masaSifirlanan + '\n';
+                alert(msg);
+                loadAdminReports();
+            } catch (e) {
+                alert('Temizlik hatası: ' + e.message);
+            }
+        }
+
         function loadAdminReports() {
             const filter = document.getElementById('reportFilter').value; currentReportData = [];
             let personelCounts = {};
@@ -1223,9 +1241,11 @@
         }
         function startTableTimerTicker() {
             if (tableTimerInterval) clearInterval(tableTimerInterval);
+            // Süre göstergesini güncellemek için, DOM'u her saniye yeniden kurmak yerine
+            // daha seyrek (3 sn) yenile -> performans artışı, donma önlenir
             tableTimerInterval = setInterval(() => {
                 if (currentUserRole === 'garson') renderTables();
-            }, 1000);
+            }, 3000);
         }
         function formatElapsed(ms) {
             if (!ms || ms < 0) return '';

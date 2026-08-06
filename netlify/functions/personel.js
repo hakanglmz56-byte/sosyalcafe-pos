@@ -136,6 +136,59 @@ exports.handler = async (event) => {
         return { statusCode: 200, headers, body: JSON.stringify({ ok: true, email: body.email }) };
       }
 
+      // 5. Geçici/test verilerini TEMİZLE (mağaza başlangıcı için kullanılır)
+      if (action === 'cleanup') {
+        const db = app.database();
+        const silinecekler = ['reports_v7', 'ikram_v7', 'iade_v7', 'cari_v7', 'cari_hareket_v7', 'stock_v7'];
+        const sonuc = { silinen: {}, cariOnarilan: 0, masaSifirlanan: 0 };
+
+        // 5.a Geçmiş test verilerini sil
+        for (const key of silinecekler) {
+          try {
+            await db.ref(key).remove();
+            sonuc.silinen[key] = true;
+          } catch (e) {
+            sonuc.silinen[key] = 'HATA: ' + e.message;
+          }
+        }
+
+        // 5.b Eski sürümden kalan cari masaları düzelt:
+        //     cariDurum true ama cariBorc 0 / boş kalmış masaları normal boş masaya çevir
+        const tblSnap = await db.ref('masalar_v7').once('value');
+        const tablolar = tblSnap.val() || {};
+        const degisiklikler = {};
+        Object.keys(tablolar).forEach((zone) => {
+          const zoneObj = tablolar[zone] || {};
+          Object.keys(zoneObj).forEach((tid) => {
+            const masa = zoneObj[tid] || {};
+            const cariDurumVarsa = !!masa.cariDurum;
+            const borc = Number(masa.cariBorc || 0);
+            const doluMu = !!(masa.orders && Object.keys(masa.orders).length > 0);
+            // Cari işaretli ama gerçek borç yoksa -> normal boş masaya çevir
+            if (cariDurumVarsa && borc <= 0 && !doluMu) {
+              degisiklikler[`${zone}/${tid}`] = {
+                orders: false, total: 0, note: '', startedAt: null,
+                cariDurum: false, cariBorc: 0, cariNakitOdenen: 0, cariMusteri: null,
+              };
+              sonuc.cariOnarilan++;
+            }
+          });
+        });
+        // Tüm masaları güvenli başlangıç durumuna sıfırla (boş başlangıç)
+        await db.ref('masalar_v7').once('value').then(async (s) => {
+          const data = s.val() || {};
+          const reset = {};
+          Object.keys(data).forEach((zone) => {
+            reset[zone] = {};
+            Object.keys(data[zone] || {}).forEach((tid) => { reset[zone][tid] = { orders: false, total: 0, note: '', startedAt: null }; });
+          });
+          await db.ref('masalar_v7').set(reset);
+          sonuc.masaSifirlanan = Object.keys(reset).reduce((a, z) => a + Object.keys(reset[z] || {}).length, 0);
+        });
+
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, ...sonuc }) };
+      }
+
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Geçersiz action.' }) };
     }
 
