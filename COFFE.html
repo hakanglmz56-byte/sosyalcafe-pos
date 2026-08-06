@@ -220,6 +220,16 @@
     </div>
 
     <div class="modal-overlay" id="moveTableModal"><div class="modal-box"><div class="modal-header"><h3>🔄 Hedef Masayı Seçin</h3><button class="modal-close-btn" onclick="closeMoveModal()">İptal</button></div><div style="padding: 15px; background: var(--sidebar-bg); display: flex; gap: 8px; overflow-x: auto;" id="moveZoneTabs"></div><div style="padding: 20px; overflow-y: auto; flex: 1; background: var(--sidebar-bg);" id="moveTablesGrid" class="table-grid"></div></div></div>
+    <div class="modal-overlay" id="splitPayModal"><div class="modal-box"><div class="modal-header"><h3>➗ Hesap Bölme / Kişi Ödeme</h3><button class="modal-close-btn" onclick="closeSplitPay()">İptal</button></div><div class="partial-pay-content">
+        <div class="summary">Seçilen Ürünler Toplamı: <span id="splitPayTotal" style="color:var(--danger)">0</span> TL</div>
+        <label>İskonto Yüzdesi (%):</label>
+        <input type="number" id="splitDiscountInput" placeholder="0 (İskontosuz)" value="0" min="0" max="100" onkeyup="calcSplitDiscount()">
+        <div class="summary" style="background:rgba(16,185,129,0.1);">Ödenecek Tutar: <span id="splitPayFinal" style="color:var(--success)">0</span> TL</div>
+        <label>Nakit Alınan Tutar (TL):</label>
+        <input type="number" id="splitCashInput" placeholder="Örn: 300" value="0" onkeyup="calcSplitPay()">
+        <div class="summary" style="background: rgba(59, 130, 246, 0.1);">Kredi Kartından Çekilecek: <span id="splitCCAmt" style="color:var(--blue)">0</span> TL</div>
+        <button style="background:var(--success); color:white; border:none; padding:15px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;" onclick="completeSplitPay()">✅ Bu Ödemeyi Onayla</button>
+    </div></div></div>
     <div class="modal-overlay" id="partialPayModal"><div class="modal-box"><div class="modal-header"><h3>🧾 Parçalı Ödeme</h3><button class="modal-close-btn" onclick="closePartialPayModal()">İptal</button></div><div class="partial-pay-content"><div class="summary">Hesap Toplamı: <span id="partialTotalAmt" style="color:var(--danger)">0</span> TL</div><label>Nakit Alınan Tutar (TL):</label><input type="number" id="partialCashInput" placeholder="Örn: 400" onkeyup="calcPartial()"><div class="summary" style="background: rgba(59, 130, 246, 0.1);">Kredi Kartından Çekilecek: <span id="partialCCAmt" style="color:var(--blue)">0</span> TL</div><button style="background:var(--success); color:white; border:none; padding:15px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;" onclick="completePartialPay()">💳 Ödemeyi Tamamla</button></div></div></div>
     <div class="modal-overlay" id="cariModal"><div class="modal-box"><div class="modal-header"><h3>👤 Cari Hesap İşlemleri</h3><button class="modal-close-btn" onclick="closeCariModal()">İptal</button></div><div class="cari-box"><div class="cari-row"><select id="cariCustomerSelect" onchange="syncCariCustomerInput()"><option value="">-- Müşteri Seçin --</option></select><input type="text" id="cariCustomerInput" oninput="refreshCariBalanceInfo()" placeholder="Yeni/Mevcut müşteri adı"></div><div class="cari-balance" id="cariBalanceInfo">Cari Bakiye: 0 TL</div>
                     <div style="border-top:1px solid var(--light); margin-top:10px; padding-top:10px;">
@@ -422,9 +432,18 @@
                         <input type="text" id="tableNoteInput" placeholder="Masaya not ekle (Örn: Nargile bol buzlu, çay açık)">
                         <button onclick="saveTableNote()">Notu Kaydet</button>
                     </div>
+                    <div id="splitBar" style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; color:white; padding:12px 16px; border-radius:12px; gap:10px; flex-wrap:wrap; flex-shrink:0;">
+                        <div style="font-weight:700;">➗ HESAP BÖLME</div>
+                        <div style="font-weight:800; color:var(--primary);">Seçilen: <span id="splitSelectedCount">0</span> ürün = <span id="splitSelectedTotal">0</span> TL</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button style="background:var(--success); color:white; border:none; padding:10px 14px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="openSplitPay()">💳 Seçilenleri Ödet</button>
+                            <button style="background:var(--danger); color:white; border:none; padding:10px 14px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="toggleSplitMode()">✖ Biti</button>
+                        </div>
+                    </div>
                     <div class="action-bar">
                         <div class="total-price" style="font-size:24px; font-weight:bold;">Toplam: <span id="totalAmount">0</span> TL</div>
                         <div class="action-btns" style="display:flex; flex-wrap:wrap; justify-content:flex-end;">
+                            <button style="background: #0f172a; color: white;" onclick="toggleSplitMode()">➗ Hesabı Böl</button>
                             <button style="background: #f1f5f9; color: var(--dark);" onclick="printBill()">🖨️ Fiş</button>
                             <button style="background: var(--success); color: white;" onclick="payBill('Nakit')">💵 Nakit</button>
                             <button style="background: var(--blue); color: white;" onclick="payBill('Kredi Kartı')">💳 K. Kartı</button>
@@ -476,6 +495,10 @@
         let currentCategory = menuCategories[0]; let moveTargetZone = 'Salon'; let currentReportData = [];
         let tableTimerInterval = null;
         let quantityInputBuffer = '';
+
+        // ── HESABI BÖL (Kişi Başı Ödeme) ──
+        let splitMode = false;
+        let splitSelected = new Set();
 
         function nowMeta() {
             const now = new Date();
@@ -1324,6 +1347,7 @@
 
         function selectTable(zone, tId) {
             activeTable = `${zone}-${tId}`;
+            splitMode = false; splitSelected.clear();
             document.getElementById('emptyOrderScreen').style.display = 'none';
             const tableData = globalTablesData[zone][tId] || {};
             document.getElementById('activeTableTitle').innerText = `${zone} - Masa ${tId}`;
@@ -1334,6 +1358,7 @@
         }
         function closeOrderScreen() {
             activeTable = null;
+            splitMode = false; splitSelected.clear();
             document.getElementById('activeTableTitle').innerText = 'Masa Seçilmedi';
             document.getElementById('tableNoteInput').value = '';
             document.getElementById('emptyOrderScreen').style.display = 'flex';
@@ -1501,7 +1526,7 @@
             const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId] || {};
             const visibleTotal = calculateActiveOrdersTotal(tableData.orders);
             document.getElementById('totalAmount').innerText = visibleTotal;
-            if(!tableData.orders) { container.innerHTML = '<div style="text-align:center; padding:20px;">Sipariş yok.</div>'; return; }
+            if(!tableData.orders) { container.innerHTML = '<div style="text-align:center; padding:20px;">Sipariş yok.</div>'; renderSplitBar(); return; }
             // En son eklenen ürün EN ÜSTTE görünsün (yeniden eskiye) -> garsonlar için
             const orderKeys = Object.keys(tableData.orders).reverse();
             orderKeys.forEach(key => {
@@ -1513,9 +1538,10 @@
                 const orderDateTime = formatOrderDateTime(order);
                 const personBadge = order.createdBy ? `<small style="display:block; margin-top:2px; color:#8b5cf6; font-weight:700;">👤 ${escapeHTML(order.createdBy)}</small>` : '';
                 const timeBadge = orderDateTime ? `<small style="display:block; margin-top:4px; color:#64748b; font-weight:600;">${escapeHTML(orderDateTime)}</small>` : '';
+                const checkbox = splitMode ? `<input type="checkbox" ${splitSelected.has(key)?'checked':''} onchange="toggleSplitSelect('${key}')" style="width:20px; height:20px; cursor:pointer; transform: scale(1.3);">` : '';
                 container.innerHTML += `
-                    <div class="order-item ${isReturned ? 'returned' : ''}">
-                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${timeBadge}${personBadge}</span>
+                    <div class="order-item ${isReturned ? 'returned' : ''}" style="${splitMode ? 'border:1px solid ' + (splitSelected.has(key)?'var(--primary)':'var(--light)') + '; background:' + (splitSelected.has(key)?'rgba(245,158,11,0.08)':'white') + ';' : ''}">
+                        <span class="item-name" style="${splitMode ? 'display:flex; align-items:center; gap:10px;' : ''}">${checkbox}${escapeHTML(order.name)} ${returnedBadge}${timeBadge}${personBadge}</span>
                         <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
                             <span style="color:var(--primary); font-weight:bold;">${order.price} TL</span>
                             ${giftButton}
@@ -1524,7 +1550,128 @@
                     </div>
                 `;
             });
+            renderSplitBar();
             setTimeout(scrollOrderListIntoViewIfMobile, 100);
+        }
+
+        function toggleSplitMode() {
+            if(!activeTable) return;
+            splitMode = !splitMode;
+            splitSelected.clear();
+            renderSplitBar();
+            renderOrders();
+        }
+        function toggleSplitSelect(key) {
+            if (splitSelected.has(key)) splitSelected.delete(key);
+            else splitSelected.add(key);
+            // Seçime göre ekranı canlı güncelle
+            const cb = document.querySelector(`input[onchange="toggleSplitSelect('${key}')"]`);
+            if (cb) {
+                const row = cb.closest('.order-item');
+                if (row) { row.style.border = splitSelected.has(key) ? '1px solid var(--primary)' : '1px solid var(--light)'; row.style.background = splitSelected.has(key) ? 'rgba(245,158,11,0.08)' : 'white'; }
+            }
+            renderSplitBar();
+        }
+        function renderSplitBar() {
+            const bar = document.getElementById('splitBar');
+            if (!bar) return;
+            const [zone, tId] = activeTable ? activeTable.split('-') : [null, null];
+            const tableData = (zone && tId && globalTablesData[zone] && globalTablesData[zone][tId]) || {};
+            const orders = tableData.orders || {};
+            let selTotal = 0; let count = 0;
+            splitSelected.forEach(key => {
+                if (orders[key] && orders[key].status !== 'returned') { selTotal += Number(orders[key].price || 0); count++; }
+            });
+            if (!splitMode) { bar.style.display = 'none'; return; }
+            bar.style.display = 'flex';
+            document.getElementById('splitSelectedTotal').innerText = selTotal;
+            document.getElementById('splitSelectedCount').innerText = count;
+        }
+
+        function openSplitPay() {
+            if (!splitMode || splitSelected.size === 0) { alert('Önce hangi ürünlerin bu kişiye ait olduğunu işaretleyin.'); return; }
+            document.getElementById('splitDiscountInput').value = 0;
+            document.getElementById('splitCashInput').value = 0;
+            updateSplitTotals();
+            document.getElementById('splitPayModal').style.display = 'flex';
+        }
+        function closeSplitPay() { document.getElementById('splitPayModal').style.display = 'none'; }
+        function getSplitBase() {
+            const [zone, tId] = activeTable.split('-');
+            const tableData = globalTablesData[zone][tId] || {};
+            const orders = tableData.orders || {};
+            let total = 0;
+            splitSelected.forEach(key => { if (orders[key] && orders[key].status !== 'returned') total += Number(orders[key].price || 0); });
+            return total;
+        }
+        function getSplitDiscount() {
+            let d = parseFloat(document.getElementById('splitDiscountInput').value) || 0;
+            if (d < 0) d = 0; if (d > 100) d = 100;
+            return d;
+        }
+        function updateSplitTotals() {
+            const base = getSplitBase();
+            const d = getSplitDiscount();
+            const finalAmt = Math.round(base * (100 - d)) / 100;
+            document.getElementById('splitPayTotal').innerText = base;
+            document.getElementById('splitPayFinal').innerText = finalAmt;
+            calcSplitPay();
+        }
+        function calcSplitDiscount() { updateSplitTotals(); }
+        function calcSplitPay() {
+            const finalAmt = parseFloat(document.getElementById('splitPayFinal').innerText) || 0;
+            let cash = parseFloat(document.getElementById('splitCashInput').value) || 0;
+            if (cash < 0) cash = 0;
+            if (cash > finalAmt) { document.getElementById('splitCashInput').value = finalAmt; cash = finalAmt; }
+            const cc = Math.round((finalAmt - cash) * 100) / 100;
+            document.getElementById('splitCCAmt').innerText = cc;
+        }
+        function completeSplitPay() {
+            if (!splitMode || splitSelected.size === 0) return;
+            const [zone, tId] = activeTable.split('-');
+            const tableData = globalTablesData[zone][tId] || {};
+            const orders = tableData.orders || {};
+            const base = getSplitBase();
+            if (base <= 0) { alert('Seçili ürünlerin tutarı 0.'); return; }
+            const d = getSplitDiscount();
+            const finalAmt = Math.round(base * (100 - d)) / 100;
+            let cash = parseFloat(document.getElementById('splitCashInput').value) || 0;
+            let cc = Math.round((finalAmt - cash) * 100) / 100;
+            if (cash < 0) cash = 0;
+            if (cc < 0) cc = 0;
+
+            if (!confirm(`Ödeme onayı:\n\nSeçilen ürünler: ${base} TL\nİskonto: %${d}\nToplam ödenecek: ${finalAmt} TL\n\nNakit: ${cash} TL\nKredi Kartı: ${cc} TL\n\nOnaylıyor musunuz?`)) return;
+
+            // Satışa işlenecek seçili ürünler
+            const soldOrders = {};
+            let soldKeys = [];
+            splitSelected.forEach(key => {
+                if (orders[key] && orders[key].status !== 'returned') { soldOrders[key] = orders[key]; soldKeys.push(key); }
+                const safeName = orders[key] && orders[key].name ? orders[key].name.replace(/[.#$\[\]]/g, '') : '';
+                if (safeName) db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
+            });
+
+            const dateKey = new Date().toISOString().split('T')[0];
+            const reportObj = { table: `${zone}-${tId}`, total: finalAmt, type: 'Bölme', time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders, personel: currentUserEmail || 'bilinmeyen', details: { iskontoYuzde: d, iskontoTutar: Math.round((base - finalAmt) * 100) / 100, nakit: cash, kredi: cc } };
+            db.ref(`reports_v7/${dateKey}`).push().set(reportObj);
+
+            // Seçili ürünleri masadan sil, kalanlar masada kalsın
+            const updates = {};
+            soldKeys.forEach(key => { updates[key] = null; });
+            db.ref(`masalar_v7/${zone}/${tId}/orders`).update(updates)
+                .then(() => recalculateTotal(zone, tId))
+                .then(() => {
+                    splitSelected.clear();
+                    // Kalan sipariş yoksa masayı kapat
+                    if (soldKeys.length === Object.keys(orders).length) {
+                        return db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: tableData.note || '', startedAt: null });
+                    }
+                })
+                .then(() => {
+                    alert(`✅ Tahsilat tamamlandı.\nNakit: ${cash} TL\nKredi Kartı: ${cc} TL\nİskonto: %${d}`);
+                    closeSplitPay();
+                    toggleSplitMode(); // bölme modundan çık
+                });
         }
 
         function saveTableNote() {
