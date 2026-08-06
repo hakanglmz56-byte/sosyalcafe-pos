@@ -1360,9 +1360,7 @@
             if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
             const [zone, tId] = activeTable.split('-');
             const curTable = (globalTablesData[zone] && globalTablesData[zone][tId]) || {};
-            if(curTable.cariDurum && curTable.cariBorc > 0) {
-                return alert('Bu masa cari borçlu; siparişleri korunuyor. Yeni ürün eklemek için önce "👤 Cari" bölümünden borcu tahsil edin ya da ürünü başka masaya alın.');
-            }
+            const cariMasa = !!(curTable.cariDurum && curTable.cariBorc > 0);
             const qty = Math.min(200, Math.max(1, parseInt(quantity, 10) || 1));
             const now = Date.now();
             const ensureStartPromise = db.ref(`masalar_v7/${zone}/${tId}`).update({ startedAt: now });
@@ -1374,7 +1372,7 @@
                     const createdAt = Date.now() + i;
                     const createdDate = new Date(createdAt).toLocaleDateString('tr-TR');
                     const createdTime = new Date(createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    writes.push(orderRef.push({
+                    const o = {
                         name: item.name,
                         price: item.price,
                         createdAt,
@@ -1382,19 +1380,38 @@
                         createdTime,
                         status: 'active',
                         createdBy: currentUserEmail || 'bilinmeyen'
-                    }));
+                    };
+                    // Cari masaya eklenen ürün cari hesabına işlenir ve masa kapanmaz
+                    if (cariMasa) o.cariAtiland = true;
+                    writes.push(orderRef.push(o));
                 }
                 return Promise.all(writes);
             })
+                .then(() => recalculateTotal(zone, tId))
                 .then(() => {
-                    recalculateTotal(zone, tId);
+                    if (cariMasa) {
+                        // Cari masaya eklenen ürünleri müşteri cari bakiyesine + masa cari borcuna işle, stok düş
+                        const guncel = (globalTablesData[zone] && globalTablesData[zone][tId]) || {};
+                        const cariMusteri = normalizeCustomerName(guncel.cariMusteri);
+                        const eklenen = item.price * qty;
+                        const yeniBorc = Number(guncel.cariBorc || 0) + eklenen;
+                        const safeName = item.name.replace(/[.#$\[\]]/g, '');
+                        db.ref(`stock_v7/${safeName}`).transaction(curr => (curr === null || curr === undefined) ? undefined : Math.max(0, curr - qty));
+                        const masaUpd = db.ref(`masalar_v7/${zone}/${tId}`).update({ cariBorc: yeniBorc, total: yeniBorc });
+                        if (cariMusteri) {
+                            const items = Array.from({length:qty}, () => ({ name: item.name, price: item.price, time: new Date().toLocaleTimeString('tr-TR', {hour:'2-digit',minute:'2-digit'}) }));
+                            return masaUpd
+                                .then(() => increaseCariBalance(cariMusteri, eklenen))
+                                .then(() => recordCariMovement(cariMusteri, eklenen, 'debt', { table: `${zone}-${tId}`, note: 'Cari masaya ürün eklendi', items }));
+                        }
+                        return masaUpd;
+                    }
+                })
+                .then(() => {
                     if (window.innerWidth <= 1200) {
                         setTimeout(() => {
                             const orderList = document.getElementById('orderList');
-                            if (orderList) {
-                                orderList.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                window.scrollTo({ top: document.documentElement.scrollTop + orderList.getBoundingClientRect().top - 20, behavior: 'smooth' });
-                            }
+                            if (orderList) { orderList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
                         }, 120);
                     }
                 })
