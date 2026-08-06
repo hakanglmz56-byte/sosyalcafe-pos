@@ -1099,9 +1099,10 @@
 
         function loadAdminReports() {
             const filter = document.getElementById('reportFilter').value; currentReportData = [];
+            let personelCounts = {};
             db.ref('reports_v7').once('value').then((snapshot) => {
                 const allData = snapshot.val();
-                let totalCiro = 0, totalNakit = 0, totalKredi = 0; let itemCounts = {}; let personelCounts = {};
+                let totalCiro = 0, totalNakit = 0, totalKredi = 0; let itemCounts = {};
                 const tbody = document.getElementById('reportsTableBody'); const productsTbody = document.getElementById('reportsProductsTableBody'); const personelTbody = document.getElementById('reportsPersonelTableBody');
                 tbody.innerHTML = ''; productsTbody.innerHTML = ''; personelTbody.innerHTML = '';
                 if(allData) {
@@ -1139,9 +1140,8 @@
                     } else { productsTbody.innerHTML = '<tr><td colspan="3">Veri yok.</td></tr>'; }
                 }
                 document.getElementById('dashTotalCiro').innerText = totalCiro + " TL"; document.getElementById('dashNakit').innerText = totalNakit + " TL"; document.getElementById('dashKredi').innerText = totalKredi + " TL";
-            });
-
-            Promise.all([db.ref('ikram_v7').once('value'), db.ref('iade_v7').once('value')]).then(([giftSnap, returnSnap]) => {
+                return Promise.all([db.ref('ikram_v7').once('value'), db.ref('iade_v7').once('value')]);
+            }).then(([giftSnap, returnSnap]) => {
                 const tbody = document.getElementById('reportsGiftsTableBody'); tbody.innerHTML = '';
                 const today = new Date();
                 const records = [];
