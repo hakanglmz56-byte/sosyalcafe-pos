@@ -122,6 +122,12 @@
         .partial-pay-content label { font-weight: bold; color: var(--dark); }
         .partial-pay-content input { padding: 15px; font-size: 18px; border: 2px solid var(--light); border-radius: 8px; outline: none; }
         .partial-pay-content .summary { font-size: 18px; font-weight: bold; padding: 15px; background: #f8fafc; border-radius: 8px; text-align: center; }
+        .cari-box { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+        .cari-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .cari-box input, .cari-box select { padding: 11px; border: 1px solid var(--light); border-radius: 8px; font-size: 14px; }
+        .cari-balance { padding: 12px; border-radius: 8px; background: #f8fafc; font-weight: 700; color: var(--dark); }
+        .cari-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .cari-buttons button { border: none; border-radius: 8px; padding: 11px 14px; font-weight: 700; cursor: pointer; }
 
         .add-product-card { background: #f8fafc; border: 2px dashed #cbd5e1; padding: 20px; border-radius: 12px; margin-bottom: 25px; }
         .add-product-card h3 { margin-top: 0; color: var(--dark); font-size: 16px; }
@@ -203,6 +209,7 @@
 
     <div class="modal-overlay" id="moveTableModal"><div class="modal-box"><div class="modal-header"><h3>🔄 Hedef Masayı Seçin</h3><button class="modal-close-btn" onclick="closeMoveModal()">İptal</button></div><div style="padding: 15px; background: var(--sidebar-bg); display: flex; gap: 8px; overflow-x: auto;" id="moveZoneTabs"></div><div style="padding: 20px; overflow-y: auto; flex: 1; background: var(--sidebar-bg);" id="moveTablesGrid" class="table-grid"></div></div></div>
     <div class="modal-overlay" id="partialPayModal"><div class="modal-box"><div class="modal-header"><h3>🧾 Parçalı Ödeme</h3><button class="modal-close-btn" onclick="closePartialPayModal()">İptal</button></div><div class="partial-pay-content"><div class="summary">Hesap Toplamı: <span id="partialTotalAmt" style="color:var(--danger)">0</span> TL</div><label>Nakit Alınan Tutar (TL):</label><input type="number" id="partialCashInput" placeholder="Örn: 400" onkeyup="calcPartial()"><div class="summary" style="background: rgba(59, 130, 246, 0.1);">Kredi Kartından Çekilecek: <span id="partialCCAmt" style="color:var(--blue)">0</span> TL</div><button style="background:var(--success); color:white; border:none; padding:15px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;" onclick="completePartialPay()">💳 Ödemeyi Tamamla</button></div></div></div>
+    <div class="modal-overlay" id="cariModal"><div class="modal-box"><div class="modal-header"><h3>👤 Cari Hesap İşlemleri</h3><button class="modal-close-btn" onclick="closeCariModal()">İptal</button></div><div class="cari-box"><div class="cari-row"><select id="cariCustomerSelect" onchange="syncCariCustomerInput()"><option value="">-- Müşteri Seçin --</option></select><input type="text" id="cariCustomerInput" oninput="refreshCariBalanceInfo()" placeholder="Yeni/Mevcut müşteri adı"></div><div class="cari-balance" id="cariBalanceInfo">Cari Bakiye: 0 TL</div><div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Aktif Masa İçin Borçlandırma</div><div class="cari-row"><input type="number" id="cariCashNowInput" placeholder="Şimdi alınan nakit (opsiyonel)"><input type="text" id="cariActiveTableInfo" readonly placeholder="Aktif masa bilgisi"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--purple); color:white;" onclick="writeActiveTableToCari()">Masa Hesabını Cariye Yaz</button></div></div><div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Cari Tahsilat (Masa Bağımsız)</div><div class="cari-row"><input type="number" id="cariTahsilatInput" placeholder="Tahsilat tutarı"><input type="text" id="cariTahsilatNote" placeholder="Not (opsiyonel)"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--success); color:white;" onclick="collectCariPayment()">Tahsilat Al</button></div></div></div></div></div>
 
     <div class="admin-container" id="adminContainer">
         <div class="admin-sidebar">
@@ -371,6 +378,7 @@
                         <div class="action-btns" style="display:flex; flex-wrap:wrap; justify-content:flex-end;">
                             <button style="background: #f1f5f9; color: var(--dark);" onclick="printBill()">🖨️ Fiş</button>
                             <button style="background: var(--purple); color: white;" onclick="openPartialPayModal()">💳 Parçalı Öde</button>
+                            <button style="background: #0f172a; color: white;" onclick="openCariModal()">👤 Cari</button>
                             <button style="background: var(--success); color: white;" onclick="payBill('Nakit')">💵 Nakit</button>
                             <button style="background: var(--blue); color: white;" onclick="payBill('Kredi Kartı')">💳 K. Kartı</button>
                         </div>
@@ -420,6 +428,27 @@
         let currentCategory = menuCategories[0]; let moveTargetZone = 'Salon'; let currentReportData = [];
         let tableTimerInterval = null;
         let quantityInputBuffer = '';
+
+        function nowMeta() {
+            const now = new Date();
+            return {
+                at: now.getTime(),
+                dateKey: now.toISOString().split('T')[0],
+                date: now.toLocaleDateString('tr-TR'),
+                time: now.toLocaleTimeString('tr-TR')
+            };
+        }
+        function customerKeyFromName(name) {
+            const raw = (name || '').toString().trim().toLowerCase();
+            const trMap = { 'ı': 'i', 'ş': 's', 'ğ': 'g', 'ü': 'u', 'ö': 'o', 'ç': 'c' };
+            let out = '';
+            for (const ch of raw) out += trMap[ch] || ch;
+            out = out.replace(/[^a-z0-9\s_-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            return out || 'musteri';
+        }
+        function normalizeCustomerName(name) {
+            return (name || '').toString().trim();
+        }
 
         const fullMenu = {
             m1: { name: "Lady Killer + Limon + Ice", price: 400, category: "Karışım Nargile Tütünü", desc: "", image: "" },
@@ -1276,6 +1305,182 @@
             document.getElementById('partialTotalAmt').innerText = activeTotal; document.getElementById('partialCashInput').value = ''; document.getElementById('partialCCAmt').innerText = '0'; document.getElementById('partialPayModal').style.display = 'flex';
         }
         function closePartialPayModal() { document.getElementById('partialPayModal').style.display = 'none'; }
+        function openCariModal() {
+            document.getElementById('cariModal').style.display = 'flex';
+            document.getElementById('cariCashNowInput').value = '';
+            document.getElementById('cariTahsilatInput').value = '';
+            document.getElementById('cariTahsilatNote').value = '';
+            if (activeTable) {
+                const [zone, tId] = activeTable.split('-');
+                const tableData = globalTablesData[zone][tId] || {};
+                const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+                document.getElementById('cariActiveTableInfo').value = `${zone}-${tId} / ${activeTotal} TL`;
+            } else {
+                document.getElementById('cariActiveTableInfo').value = 'Aktif masa yok';
+            }
+            loadCariCustomers();
+        }
+        function closeCariModal() { document.getElementById('cariModal').style.display = 'none'; }
+        function loadCariCustomers() {
+            const select = document.getElementById('cariCustomerSelect');
+            if (!select) return;
+            select.innerHTML = '<option value="">-- Müşteri Seçin --</option>';
+            db.ref('cari_v7').once('value').then(snap => {
+                const data = snap.val() || {};
+                const list = Object.values(data).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr'));
+                list.forEach(c => {
+                    const name = normalizeCustomerName(c.name);
+                    if (!name) return;
+                    select.innerHTML += `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`;
+                });
+            });
+            refreshCariBalanceInfo();
+        }
+        function syncCariCustomerInput() {
+            const selected = document.getElementById('cariCustomerSelect').value;
+            if (selected) document.getElementById('cariCustomerInput').value = selected;
+            refreshCariBalanceInfo();
+        }
+        function getSelectedCariCustomerName() {
+            const inputVal = normalizeCustomerName(document.getElementById('cariCustomerInput').value);
+            return inputVal;
+        }
+        function refreshCariBalanceInfo() {
+            const info = document.getElementById('cariBalanceInfo');
+            if (!info) return;
+            const name = getSelectedCariCustomerName();
+            if (!name) {
+                info.innerText = 'Cari Bakiye: 0 TL';
+                return;
+            }
+            const cKey = customerKeyFromName(name);
+            db.ref(`cari_v7/${cKey}`).once('value').then(snap => {
+                const data = snap.val() || {};
+                const bal = Number(data.balance || 0);
+                info.innerText = `${name} Cari Bakiye: ${bal} TL`;
+            });
+        }
+        function recordCariMovement(customerName, amount, type, extra = {}) {
+            const name = normalizeCustomerName(customerName);
+            const cKey = customerKeyFromName(name);
+            const meta = nowMeta();
+            const payload = {
+                customerKey: cKey,
+                customerName: name,
+                type,
+                amount: Number(amount || 0),
+                date: meta.date,
+                time: meta.time,
+                at: meta.at,
+                ...extra
+            };
+            return db.ref(`cari_hareket_v7/${cKey}`).push(payload);
+        }
+        function increaseCariBalance(customerName, amount) {
+            const name = normalizeCustomerName(customerName);
+            const cKey = customerKeyFromName(name);
+            return db.ref(`cari_v7/${cKey}`).transaction(curr => {
+                const base = curr || { name, balance: 0 };
+                const nextBal = Number(base.balance || 0) + Number(amount || 0);
+                return { ...base, name, balance: nextBal, updatedAt: Date.now() };
+            });
+        }
+        function decreaseCariBalance(customerName, amount) {
+            const name = normalizeCustomerName(customerName);
+            const cKey = customerKeyFromName(name);
+            return db.ref(`cari_v7/${cKey}`).transaction(curr => {
+                const base = curr || { name, balance: 0 };
+                const currentBal = Number(base.balance || 0);
+                const paid = Math.min(currentBal, Number(amount || 0));
+                const nextBal = Math.max(0, currentBal - paid);
+                return { ...base, name, balance: nextBal, updatedAt: Date.now() };
+            });
+        }
+        function writeActiveTableToCari() {
+            if (!activeTable) return alert('Önce aktif masa seçin.');
+            const name = getSelectedCariCustomerName();
+            if (!name) return alert('Müşteri adı seçin veya yazın.');
+            const cashNow = Number(document.getElementById('cariCashNowInput').value || 0);
+            if (cashNow < 0) return alert('Nakit tutarı negatif olamaz.');
+
+            const [zone, tId] = activeTable.split('-');
+            const tableData = globalTablesData[zone][tId];
+            if (!tableData || !tableData.orders) return alert('Aktif masada sipariş yok.');
+
+            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
+            if (activeTotal <= 0) return alert('Kapatılacak tutar yok.');
+            if (cashNow > activeTotal) return alert('Nakit tutarı toplamdan büyük olamaz.');
+
+            const debt = activeTotal - cashNow;
+            const soldOrders = {};
+            Object.entries(tableData.orders).forEach(([key, order]) => {
+                if (order && order.status === 'returned') return;
+                soldOrders[key] = order;
+                const safeName = order.name.replace(/[.#$\[\]]/g, '');
+                db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
+            });
+
+            const meta = nowMeta();
+            const reportType = debt > 0 ? (cashNow > 0 ? 'Kısmi Tahsilat + Cari' : 'Cariye Yazıldı') : 'Nakit';
+            const reportObj = {
+                table: `${zone}-${tId}`,
+                total: activeTotal,
+                type: reportType,
+                time: meta.time,
+                orders: soldOrders,
+                details: { customer: name, nakit: cashNow, cari: debt }
+            };
+
+            let flow = Promise.resolve();
+            if (debt > 0) {
+                flow = flow
+                    .then(() => increaseCariBalance(name, debt))
+                    .then(() => recordCariMovement(name, debt, 'debt', { table: `${zone}-${tId}`, note: 'Masa hesabı cariye yazıldı' }));
+            }
+            if (cashNow > 0) {
+                flow = flow.then(() => recordCariMovement(name, cashNow, 'cash-at-table', { table: `${zone}-${tId}`, note: 'Masada anlık nakit tahsilat' }));
+            }
+
+            flow
+                .then(() => db.ref(`reports_v7/${meta.dateKey}`).push().set(reportObj))
+                .then(() => db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null }))
+                .then(() => {
+                    alert(`İşlem tamamlandı. Nakit: ${cashNow} TL, Cari borç: ${debt} TL`);
+                    closeCariModal();
+                    closeOrderScreen();
+                })
+                .catch(e => alert('Cariye yazma hatası: ' + e.message));
+        }
+        function collectCariPayment() {
+            const name = getSelectedCariCustomerName();
+            if (!name) return alert('Müşteri adı seçin veya yazın.');
+            const amount = Number(document.getElementById('cariTahsilatInput').value || 0);
+            const note = (document.getElementById('cariTahsilatNote').value || '').trim();
+            if (amount <= 0) return alert('Geçerli tahsilat tutarı girin.');
+
+            const cKey = customerKeyFromName(name);
+            db.ref(`cari_v7/${cKey}`).once('value').then(snap => {
+                const data = snap.val() || {};
+                const currentBalance = Number(data.balance || 0);
+                if (currentBalance <= 0) return alert('Bu müşterinin tahsil edilecek bakiyesi yok.');
+                const collected = Math.min(currentBalance, amount);
+                const meta = nowMeta();
+                return decreaseCariBalance(name, collected)
+                    .then(() => recordCariMovement(name, collected, 'payment', { note: note || 'Cari tahsilat' }))
+                    .then(() => db.ref(`reports_v7/${meta.dateKey}`).push().set({
+                        table: `CARI-${name}`,
+                        total: collected,
+                        type: 'Cari Tahsilat',
+                        time: meta.time,
+                        details: { customer: name, note: note || '' }
+                    }))
+                    .then(() => {
+                        alert(`${name} için ${collected} TL tahsilat işlendi.`);
+                        document.getElementById('cariTahsilatInput').value = '';
+                        refreshCariBalanceInfo();
+                    });
+            }).catch(e => alert('Cari tahsilat hatası: ' + e.message));
+        }
         function calcPartial() {
             const total = parseInt(document.getElementById('partialTotalAmt').innerText); let cash = parseInt(document.getElementById('partialCashInput').value);
             if(isNaN(cash) || cash < 0) cash = 0; if(cash > total) { document.getElementById('partialCashInput').value = total; cash = total; }
