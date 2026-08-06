@@ -660,7 +660,12 @@
             firebase.auth().signOut().catch(() => {});
         }
 
-        initDatabaseListen();
+        let dbListenersReady = false;
+        function ensureDatabaseListeners() {
+            if (dbListenersReady) return;
+            dbListenersReady = true;
+            initDatabaseListen();
+        }
 
         // QR menü ve POS: oturum yönetimi
         firebase.auth().onAuthStateChanged(user => {
@@ -669,6 +674,7 @@
                 user.getIdTokenResult().then(itr => {
                     const role = (itr.claims && itr.claims.role) || 'garson';
                     currentUserRole = role;
+                    ensureDatabaseListeners();
                     document.getElementById('loginScreen').style.display = 'none';
                     if (role === 'admin') {
                         document.getElementById('posContainer').style.display = 'none';
@@ -683,6 +689,8 @@
                 });
             } else {
                 currentUserRole = null;
+                currentUserEmail = '';
+                dbListenersReady = false;
                 document.getElementById('posContainer').style.display = 'none';
                 document.getElementById('adminContainer').style.display = 'none';
                 document.getElementById('loginScreen').style.display = 'flex';
