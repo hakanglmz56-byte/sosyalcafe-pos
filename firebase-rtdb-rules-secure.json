@@ -49,6 +49,24 @@
       ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')"
     },
 
+    "cari_v7": {
+      ".read": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+      "$customerKey": {
+        ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+        ".validate": "newData.hasChildren(['name', 'balance']) && newData.child('name').isString() && newData.child('name').val().length <= 120 && newData.child('balance').isNumber() && newData.child('balance').val() >= 0 && newData.child('balance').val() <= 100000000"
+      }
+    },
+
+    "cari_hareket_v7": {
+      ".read": "auth != null && auth.token.role === 'admin'",
+      "$customerKey": {
+        "$movementId": {
+          ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+          ".validate": "newData.hasChildren(['customerKey', 'customerName', 'type', 'amount']) && newData.child('customerKey').isString() && newData.child('customerName').isString() && newData.child('type').isString() && newData.child('amount').isNumber() && newData.child('amount').val() >= 0"
+        }
+      }
+    },
+
     "ayarlar_v7": {
       ".read": "auth != null && auth.token.role === 'admin'",
       ".write": "auth != null && auth.token.role === 'admin'"

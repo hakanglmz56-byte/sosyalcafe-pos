@@ -1,4 +1,4 @@
-{
+öncelikle az önce ekledğimiz öz{
   "rules": {
     ".read": false,
     ".write": false,
@@ -42,6 +42,24 @@
     "ikram_v7": {
       ".read": false,
       ".write": true
+    },
+
+    "cari_v7": {
+      ".read": true,
+      "$customerKey": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['name', 'balance']) && newData.child('name').isString() && newData.child('name').val().length <= 120 && newData.child('balance').isNumber() && newData.child('balance').val() >= 0 && newData.child('balance').val() <= 100000000"
+      }
+    },
+
+    "cari_hareket_v7": {
+      ".read": false,
+      "$customerKey": {
+        "$movementId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['customerKey', 'customerName', 'type', 'amount']) && newData.child('customerKey').isString() && newData.child('customerName').isString() && newData.child('type').isString() && newData.child('amount').isNumber() && newData.child('amount').val() >= 0"
+        }
+      }
     },
 
     "reports_v7": {
