@@ -217,7 +217,12 @@
 
     <div class="modal-overlay" id="moveTableModal"><div class="modal-box"><div class="modal-header"><h3>🔄 Hedef Masayı Seçin</h3><button class="modal-close-btn" onclick="closeMoveModal()">İptal</button></div><div style="padding: 15px; background: var(--sidebar-bg); display: flex; gap: 8px; overflow-x: auto;" id="moveZoneTabs"></div><div style="padding: 20px; overflow-y: auto; flex: 1; background: var(--sidebar-bg);" id="moveTablesGrid" class="table-grid"></div></div></div>
     <div class="modal-overlay" id="partialPayModal"><div class="modal-box"><div class="modal-header"><h3>🧾 Parçalı Ödeme</h3><button class="modal-close-btn" onclick="closePartialPayModal()">İptal</button></div><div class="partial-pay-content"><div class="summary">Hesap Toplamı: <span id="partialTotalAmt" style="color:var(--danger)">0</span> TL</div><label>Nakit Alınan Tutar (TL):</label><input type="number" id="partialCashInput" placeholder="Örn: 400" onkeyup="calcPartial()"><div class="summary" style="background: rgba(59, 130, 246, 0.1);">Kredi Kartından Çekilecek: <span id="partialCCAmt" style="color:var(--blue)">0</span> TL</div><button style="background:var(--success); color:white; border:none; padding:15px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;" onclick="completePartialPay()">💳 Ödemeyi Tamamla</button></div></div></div>
-    <div class="modal-overlay" id="cariModal"><div class="modal-box"><div class="modal-header"><h3>👤 Cari Hesap İşlemleri</h3><button class="modal-close-btn" onclick="closeCariModal()">İptal</button></div><div class="cari-box"><div class="cari-row"><select id="cariCustomerSelect" onchange="syncCariCustomerInput()"><option value="">-- Müşteri Seçin --</option></select><input type="text" id="cariCustomerInput" oninput="refreshCariBalanceInfo()" placeholder="Yeni/Mevcut müşteri adı"></div><div class="cari-balance" id="cariBalanceInfo">Cari Bakiye: 0 TL</div><div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Aktif Masa İçin Borçlandırma</div><div class="cari-row"><input type="number" id="cariCashNowInput" placeholder="Şimdi alınan nakit (opsiyonel)"><input type="text" id="cariActiveTableInfo" readonly placeholder="Aktif masa bilgisi"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--purple); color:white;" onclick="writeActiveTableToCari()">Masa Hesabını Cariye Yaz</button></div></div><div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Cari Tahsilat (Masa Bağımsız)</div><div class="cari-row"><input type="number" id="cariTahsilatInput" placeholder="Tahsilat tutarı"><input type="text" id="cariTahsilatNote" placeholder="Not (opsiyonel)"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--success); color:white;" onclick="collectCariPayment()">Tahsilat Al</button></div></div></div></div></div>
+    <div class="modal-overlay" id="cariModal"><div class="modal-box"><div class="modal-header"><h3>👤 Cari Hesap İşlemleri</h3><button class="modal-close-btn" onclick="closeCariModal()">İptal</button></div><div class="cari-box"><div class="cari-row"><select id="cariCustomerSelect" onchange="syncCariCustomerInput()"><option value="">-- Müşteri Seçin --</option></select><input type="text" id="cariCustomerInput" oninput="refreshCariBalanceInfo()" placeholder="Yeni/Mevcut müşteri adı"></div><div class="cari-balance" id="cariBalanceInfo">Cari Bakiye: 0 TL</div>
+                    <div style="border-top:1px solid var(--light); margin-top:10px; padding-top:10px;">
+                        <div style="font-weight:700; color:var(--dark); margin-bottom:8px;">📋 Müşteri Cari Ekstresi (Gün / Saat / Ürün)</div>
+                    <div id="cariEkstreList" style="max-height:220px; overflow-y:auto; background:#f8fafc; border-radius:8px; padding:10px; font-size:12px; color:#334155;"></div>
+                </div>
+                <div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Aktif Masa İçin Borçlandırma</div><div class="cari-row"><input type="number" id="cariCashNowInput" placeholder="Şimdi alınan nakit (opsiyonel)"><input type="text" id="cariActiveTableInfo" readonly placeholder="Aktif masa bilgisi"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--purple); color:white;" onclick="writeActiveTableToCari()">Masa Hesabını Cariye Yaz</button></div></div><div style="border-top:1px solid var(--light); padding-top:10px;"><div style="font-weight:700; color:var(--dark); margin-bottom:8px;">Cari Tahsilat (Masa Bağımsız)</div><div class="cari-row"><input type="number" id="cariTahsilatInput" placeholder="Tahsilat tutarı"><input type="text" id="cariTahsilatNote" placeholder="Not (opsiyonel)"></div><div class="cari-buttons" style="margin-top:10px;"><button style="background:var(--success); color:white;" onclick="collectCariPayment()">Tahsilat Al</button></div></div></div></div></div>
 
     <div class="admin-container" id="adminContainer">
         <div class="admin-sidebar">
@@ -1168,18 +1173,17 @@
 
                 if (filtered.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3">İkram/iade kaydı bulunamadı.</td></tr>';
-                    return;
+                } else {
+                    filtered.forEach(rec => {
+                        const pers = (rec.personel || '').split('@')[0].replace('.', ' ');
+                        if(rec.type === 'IADE') {
+                            const key = (rec.personel || 'bilinmeyen').split('@')[0].replace('.', ' ');
+                            if(!personelCounts[key]) personelCounts[key] = { saleCount: 0, saleTotal: 0, wasteCount: 0 };
+                            personelCounts[key].wasteCount++;
+                        }
+                        tbody.innerHTML += `<tr><td style="font-weight:bold; color:${rec.color};">[${rec.type}] ${escapeHTML(rec.item || '-')}</td><td style="font-size:12px; color:#64748b;">${rec.date || '-'} ${rec.time || ''}</td><td>${rec.table || '-'}</td><td style="color:var(--purple); font-size:12px;">${escapeHTML(pers || '-')}</td></tr>`;
+                    });
                 }
-
-                filtered.forEach(rec => {
-                    const pers = (rec.personel || '').split('@')[0].replace('.', ' ');
-                    if(rec.type === 'IADE') {
-                        const key = (rec.personel || 'bilinmeyen').split('@')[0].replace('.', ' ');
-                        if(!personelCounts[key]) personelCounts[key] = { saleCount: 0, saleTotal: 0, wasteCount: 0 };
-                        personelCounts[key].wasteCount++;
-                    }
-                    tbody.innerHTML += `<tr><td style="font-weight:bold; color:${rec.color};">[${rec.type}] ${escapeHTML(rec.item || '-')}</td><td style="font-size:12px; color:#64748b;">${rec.date || '-'} ${rec.time || ''}</td><td>${rec.table || '-'}</td><td style="color:var(--purple); font-size:12px;">${escapeHTML(pers || '-')}</td></tr>`;
-                });
                 renderPersonelReport(personelCounts);
             });
         }
@@ -1594,8 +1598,10 @@
             const info = document.getElementById('cariBalanceInfo');
             if (!info) return;
             const name = getSelectedCariCustomerName();
+            const ekstreEl = document.getElementById('cariEkstreList');
             if (!name) {
                 info.innerText = 'Cari Bakiye: 0 TL';
+                if(ekstreEl) ekstreEl.innerHTML = 'Müşteri seçin veya ekstresini görüntüleyin.';
                 return;
             }
             const cKey = customerKeyFromName(name);
@@ -1604,6 +1610,26 @@
                 const bal = Number(data.balance || 0);
                 info.innerText = `${name} Cari Bakiye: ${bal} TL`;
             });
+            if(ekstreEl) {
+                ekstreEl.innerHTML = 'Ekstre yükleniyor...';
+                db.ref(`cari_hareket_v7/${cKey}`).once('value').then(hsnap => {
+                    const h = hsnap.val() || {};
+                    const rows = Object.values(h).sort((a,b) => (a.at||0)-(b.at||0));
+                    if(rows.length === 0) { ekstreEl.innerHTML = 'Henüz cari hareketi yok.'; return; }
+                    ekstreEl.innerHTML = rows.map(r => {
+                        const tip = r.type === 'debt' ? '➕ Borç' : r.type === 'payment' ? '➖ Ödeme' : r.type === 'cash-at-table' ? '💵 Anlık Nakit' : (r.type || 'İşlem');
+                        const itemsHtml = (r.items && r.items.length)
+                            ? '<div style="margin-top:3px; color:#334155;">' + r.items.map(it => `&nbsp;• ${escapeHTML(it.name)} (${it.price} TL) [${escapeHTML(it.createdTime||'')}]`).join('<br>') + '</div>'
+                            : '';
+                        const renk = r.type === 'payment' ? 'var(--success)' : 'var(--danger)';
+                        return `<div style="border-bottom:1px dashed #e2e8f0; padding:6px 0;">
+                            <span style="font-weight:800; color:${renk};">${tip}: ${r.amount} TL</span>
+                            <span style="color:#64748b; font-size:11px;"> ${escapeHTML(r.date||'')} ${escapeHTML(r.time||'')} | ${escapeHTML(r.table||'')}</span>
+                            ${itemsHtml}
+                        </div>`;
+                    }).join('');
+                }).catch(() => { if(ekstreEl) ekstreEl.innerHTML = 'Ekstre okunamadı.'; });
+            }
         }
         function recordCariMovement(customerName, amount, type, extra = {}) {
             const name = normalizeCustomerName(customerName);
@@ -1677,11 +1703,14 @@
                 details: { customer: name, nakit: cashNow, cari: debt }
             };
 
+            // Ürün detaylarını ekstre için items olarak oluştur
+            const ekstreItems = Object.values(soldOrders).map(o => ({ name: o.name, price: Number(o.price||0), time: o.createdTime || '' }));
+
             let flow = Promise.resolve();
             if (debt > 0) {
                 flow = flow
                     .then(() => increaseCariBalance(name, debt))
-                    .then(() => recordCariMovement(name, debt, 'debt', { table: `${zone}-${tId}`, note: 'Masa hesabı cariye yazıldı' }));
+                    .then(() => recordCariMovement(name, debt, 'debt', { table: `${zone}-${tId}`, note: 'Masa hesabı cariye yazıldı', items: ekstreItems }));
             }
             if (cashNow > 0) {
                 flow = flow.then(() => recordCariMovement(name, cashNow, 'cash-at-table', { table: `${zone}-${tId}`, note: 'Masada anlık nakit tahsilat' }));
