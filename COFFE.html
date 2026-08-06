@@ -89,7 +89,11 @@
         .order-right-panel { display: flex; flex-direction: column; gap: 15px; min-height: 0; overflow: hidden; }
         .order-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; background: #f8fafc; border-radius: 16px; padding: 16px; }
         .table-note-box { display: flex; gap: 10px; margin-bottom: 15px; flex-shrink: 0; }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+        .action-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; flex-wrap: wrap; gap: 10px; flex-shrink: 0; margin-top: 12px; border: 1px solid var(--light); box-shadow: 0 -2px 10px rgba(15,23,42,0.04); }
+        .action-bar .total-price { font-size: 26px; font-weight: 800; color: var(--dark); }
+        .action-bar .action-btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+        .order-list { border: 1px solid var(--light); }
+        .payment-divider { height: 1px; background: var(--light); margin: 0 0 12px 0; }
         .menu-item-btn { min-width: 150px; min-height: 110px; padding: 12px; background: #f8fafc; border: 1px solid var(--light); border-radius: 14px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--dark); text-align: center; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; transition: transform 0.15s ease; }
         .menu-item-btn:hover { transform: translateY(-2px); }
         .menu-item-btn span { display: block; color: var(--primary); font-size: 14px; font-weight: 800; margin-top: 8px; white-space: normal; overflow: hidden; text-overflow: ellipsis; }
@@ -422,10 +426,9 @@
                         <div class="total-price" style="font-size:24px; font-weight:bold;">Toplam: <span id="totalAmount">0</span> TL</div>
                         <div class="action-btns" style="display:flex; flex-wrap:wrap; justify-content:flex-end;">
                             <button style="background: #f1f5f9; color: var(--dark);" onclick="printBill()">🖨️ Fiş</button>
-                            <button style="background: var(--purple); color: white;" onclick="openPartialPayModal()">💳 Parçalı Öde</button>
-                            <button style="background: #0f172a; color: white;" onclick="openCariModal()">👤 Cari</button>
                             <button style="background: var(--success); color: white;" onclick="payBill('Nakit')">💵 Nakit</button>
                             <button style="background: var(--blue); color: white;" onclick="payBill('Kredi Kartı')">💳 K. Kartı</button>
+                            <button style="background: var(--purple); color: white;" onclick="payBill('Parçalı')">💳 Parçalı Öde</button>
                         </div>
                     </div>
                 </div>
@@ -1287,19 +1290,17 @@
             const tables = globalTablesData[activeZone] || {};
             for(let i=1; i<=zoneConfigs[activeZone]; i++) {
                 const tableData = tables[i] || { orders: false, total: 0, note: "", startedAt: null };
-                const isCari = !!tableData.cariDurum;
                 const isOccupied = !!tableData.orders;
                 const activeTotal = calculateActiveOrdersTotal(tableData.orders);
                 const elapsedText = tableData.startedAt ? formatElapsed(Date.now() - Number(tableData.startedAt)) : '';
                 const btn = document.createElement('button');
-                if (isCari) { btn.className = 'table-btn occupied'; btn.style.background = 'var(--purple)'; }
-                else { btn.className = 'table-btn ' + (isOccupied ? 'occupied' : 'empty'); }
+                btn.className = 'table-btn ' + (isOccupied ? 'occupied' : 'empty');
                 if(activeTable === `${activeZone}-${i}`) btn.classList.add('active');
                 btn.innerHTML = `
-                    <div class="table-name">${isCari ? 'CARİ' : 'Masa ' + i}</div>
+                    <div class="table-name">Masa ${i}</div>
                     <div class="table-meta">
-                        <span class="table-time">${isCari ? '' : (isOccupied ? elapsedText : '')}</span>
-                        <span class="table-price">${isCari ? ((tableData.cariBorc||0) + ' TL') : (isOccupied ? activeTotal + ' TL' : '')}</span>
+                        <span class="table-time">${isOccupied ? elapsedText : ''}</span>
+                        <span class="table-price">${isOccupied ? activeTotal + ' TL' : ''}</span>
                     </div>
                 `;
                 btn.onclick = () => selectTable(activeZone, i); container.appendChild(btn);
@@ -1325,7 +1326,7 @@
             activeTable = `${zone}-${tId}`;
             document.getElementById('emptyOrderScreen').style.display = 'none';
             const tableData = globalTablesData[zone][tId] || {};
-            document.getElementById('activeTableTitle').innerText = tableData.cariDurum ? `${zone} - Masa ${tId} (CARİ ${tableData.cariBorc} TL)` : `${zone} - Masa ${tId}`;
+            document.getElementById('activeTableTitle').innerText = `${zone} - Masa ${tId}`;
             document.getElementById('tableNoteInput').value = tableData.note || "";
             updateOrderScreenVisibility();
             renderTables(); renderPOSMenu(); renderOrders();
@@ -1379,8 +1380,6 @@
         function addToOrder(item, quantity = 1) {
             if(!activeTable) return alert("Lütfen önce sol taraftan bir masa seçin!");
             const [zone, tId] = activeTable.split('-');
-            const curTable = (globalTablesData[zone] && globalTablesData[zone][tId]) || {};
-            const cariMasa = !!(curTable.cariDurum && curTable.cariBorc > 0);
             const qty = Math.min(200, Math.max(1, parseInt(quantity, 10) || 1));
             const now = Date.now();
             const ensureStartPromise = db.ref(`masalar_v7/${zone}/${tId}`).update({ startedAt: now });
@@ -1392,7 +1391,7 @@
                     const createdAt = Date.now() + i;
                     const createdDate = new Date(createdAt).toLocaleDateString('tr-TR');
                     const createdTime = new Date(createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    const o = {
+                    writes.push(orderRef.push({
                         name: item.name,
                         price: item.price,
                         createdAt,
@@ -1400,33 +1399,11 @@
                         createdTime,
                         status: 'active',
                         createdBy: currentUserEmail || 'bilinmeyen'
-                    };
-                    // Cari masaya eklenen ürün cari hesabına işlenir ve masa kapanmaz
-                    if (cariMasa) o.cariAtiland = true;
-                    writes.push(orderRef.push(o));
+                    }));
                 }
                 return Promise.all(writes);
             })
                 .then(() => recalculateTotal(zone, tId))
-                .then(() => {
-                    if (cariMasa) {
-                        // Cari masaya eklenen ürünleri müşteri cari bakiyesine + masa cari borcuna işle, stok düş
-                        const guncel = (globalTablesData[zone] && globalTablesData[zone][tId]) || {};
-                        const cariMusteri = normalizeCustomerName(guncel.cariMusteri);
-                        const eklenen = item.price * qty;
-                        const yeniBorc = Number(guncel.cariBorc || 0) + eklenen;
-                        const safeName = item.name.replace(/[.#$\[\]]/g, '');
-                        db.ref(`stock_v7/${safeName}`).transaction(curr => (curr === null || curr === undefined) ? undefined : Math.max(0, curr - qty));
-                        const masaUpd = db.ref(`masalar_v7/${zone}/${tId}`).update({ cariBorc: yeniBorc, total: yeniBorc });
-                        if (cariMusteri) {
-                            const items = Array.from({length:qty}, () => ({ name: item.name, price: item.price, time: new Date().toLocaleTimeString('tr-TR', {hour:'2-digit',minute:'2-digit'}) }));
-                            return masaUpd
-                                .then(() => increaseCariBalance(cariMusteri, eklenen))
-                                .then(() => recordCariMovement(cariMusteri, eklenen, 'debt', { table: `${zone}-${tId}`, note: 'Cari masaya ürün eklendi', items }));
-                        }
-                        return masaUpd;
-                    }
-                })
                 .then(() => {
                     if (window.innerWidth <= 1200) {
                         setTimeout(() => {
@@ -1525,20 +1502,20 @@
             const visibleTotal = calculateActiveOrdersTotal(tableData.orders);
             document.getElementById('totalAmount').innerText = visibleTotal;
             if(!tableData.orders) { container.innerHTML = '<div style="text-align:center; padding:20px;">Sipariş yok.</div>'; return; }
-            Object.keys(tableData.orders).forEach(key => {
+            // En son eklenen ürün EN ÜSTTE görünsün (yeniden eskiye) -> garsonlar için
+            const orderKeys = Object.keys(tableData.orders).reverse();
+            orderKeys.forEach(key => {
                 const order = tableData.orders[key];
                 const isReturned = order.status === 'returned';
-                const isCariAtilmis = !!order.cariAtiland;
                 const returnedBadge = isReturned ? `<span class="returned-badge">İADE</span>` : '';
-                const cariBadge = isCariAtilmis ? `<span style="background:rgba(139,92,246,0.15); color:var(--purple); padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; margin-left:6px;">CARİ</span>` : '';
-                const returnButton = (isReturned || isCariAtilmis) ? '' : `<button class="return-btn" onclick="returnOrder('${key}')">İade Et</button>`;
-                const giftButton = (isReturned || isCariAtilmis) ? '' : `<button class="gift-btn" onclick="giftOrder('${key}')">🎁 İkram</button>`;
+                const returnButton = isReturned ? '' : `<button class="return-btn" onclick="returnOrder('${key}')">İade Et</button>`;
+                const giftButton = isReturned ? '' : `<button class="gift-btn" onclick="giftOrder('${key}')">🎁 İkram</button>`;
                 const orderDateTime = formatOrderDateTime(order);
                 const personBadge = order.createdBy ? `<small style="display:block; margin-top:2px; color:#8b5cf6; font-weight:700;">👤 ${escapeHTML(order.createdBy)}</small>` : '';
                 const timeBadge = orderDateTime ? `<small style="display:block; margin-top:4px; color:#64748b; font-weight:600;">${escapeHTML(orderDateTime)}</small>` : '';
                 container.innerHTML += `
                     <div class="order-item ${isReturned ? 'returned' : ''}">
-                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${cariBadge}${timeBadge}${personBadge}</span>
+                        <span class="item-name">${escapeHTML(order.name)} ${returnedBadge}${timeBadge}${personBadge}</span>
                         <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px;">
                             <span style="color:var(--primary); font-weight:bold;">${order.price} TL</span>
                             ${giftButton}
@@ -1571,20 +1548,15 @@
 
         function payBill(paymentType) {
             if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
-            if(tableData && tableData.cariDurum && tableData.cariBorc > 0 && !Object.values(tableData.orders||{}).some(o => o && !o.cariAtiland && o.status !== 'returned')) {
-                return alert('Bu masa cari borçlu. Siparişler korunuyor. Borçu tahsil etmek için "👤 Cari" bölümünden "Cari Tahsilat" kullanın.');
-            }
             if(!tableData.orders) return;
             const activeTotal = calculateActiveOrdersTotal(tableData.orders);
             tableData.total = activeTotal;
+            if(paymentType === 'Parçalı') { openPartialPayModal(); return; }
             if(confirm(`Toplam ${activeTotal} TL, ${paymentType} olarak kapatılacak. Onaylıyor musunuz?`)) { processPayment(zone, tId, tableData, paymentType, null); }
         }
 
         function openPartialPayModal() {
             if(!activeTable) return; const [zone, tId] = activeTable.split('-'); const tableData = globalTablesData[zone][tId];
-            if(tableData && tableData.cariDurum && tableData.cariBorc > 0 && !Object.values(tableData.orders||{}).some(o => o && !o.cariAtiland && o.status !== 'returned')) {
-                return alert('Bu masa cari borçlu. Siparişler korunuyor. Borçu tahsil etmek için "👤 Cari" bölümünden "Cari Tahsilat" kullanın.');
-            }
             if(!tableData || !tableData.orders) return alert("Hesap boş!");
             const activeTotal = calculateActiveOrdersTotal(tableData.orders);
             tableData.total = activeTotal;
@@ -1824,36 +1796,21 @@
 
         function processPayment(zone, tId, tableData, paymentType, partialDetails) {
             const dateKey = new Date().toISOString().split('T')[0];
-            const cariBorc = (tableData.cariDurum && tableData.cariBorc > 0);
-            const activeTotal = calculateActiveOrdersTotal(tableData.orders);
-            tableData.total = activeTotal;
             const soldOrders = {};
             Object.entries(tableData.orders).forEach(([key, order]) => {
-                // İade edilmiş veya daha önce cariye yazılmış siparişleri tekrar satma (çift kayıt önleme)
-                if(order && (order.status === 'returned' || order.cariAtiland)) return;
+                if(order && order.status === 'returned') return;
                 soldOrders[key] = order;
                 const safeName = order.name.replace(/[.#$\[\]]/g, '');
                 db.ref(`stock_v7/${safeName}`).transaction(curr => { return curr === null ? undefined : curr - 1; });
             });
-            // Cari atılmış siparişler masada kalır, masa silinmez (yalnızca yeni siparişler kapatılır)
             const yeniToplam = Object.values(soldOrders).reduce((s, o) => s + Number(o.price || 0), 0);
             if (yeniToplam > 0) {
                 let reportObj = { table: `${zone}-${tId}`, total: yeniToplam, type: paymentType, time: new Date().toLocaleTimeString('tr-TR'), orders: soldOrders, personel: currentUserEmail || 'bilinmeyen' };
                 if(partialDetails) reportObj.details = partialDetails;
                 db.ref(`reports_v7/${dateKey}`).push().set(reportObj);
             }
-            // Cari atılmış siparişleri koruyarak masayı anlık yeni siparişlerden arındır
-            const kalanOrders = {};
-            Object.entries(tableData.orders).forEach(([key, order]) => {
-                if (order && order.cariAtiland) kalanOrders[key] = order;
-            });
-            const kalanToplam = Object.values(kalanOrders).reduce((s, o) => s + Number(o.price || 0), 0);
-            db.ref(`masalar_v7/${zone}/${tId}`).update({
-                orders: kalanOrders,
-                total: kalanToplam,
-                cariDurum: kalanToplam > 0,
-                cariBorc: kalanToplam > 0 ? kalanToplam : 0
-            }).then(() => { closeOrderScreen(); });
+            db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null })
+                .then(() => { closeOrderScreen(); });
         }
 
         function openMoveModal() {
