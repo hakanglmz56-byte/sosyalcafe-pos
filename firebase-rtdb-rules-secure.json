@@ -4,7 +4,7 @@
     ".write": false,
 
     "menu_v7": {
-      ".read": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+      ".read": "auth != null",
       "$itemId": {
         ".write": "auth != null && auth.token.role === 'admin'",
         ".validate": "newData.hasChildren(['name', 'price', 'category']) && newData.child('name').isString() && newData.child('name').val().length <= 120 && newData.child('price').isNumber() && newData.child('price').val() >= 0 && newData.child('price').val() <= 100000 && newData.child('category').isString()"
@@ -12,10 +12,10 @@
     },
 
     "stock_v7": {
-      ".read": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+      ".read": "auth != null",
       "$safeName": {
-        ".write": "auth != null && auth.token.role === 'admin'",
-        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+        ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
       }
     },
 
@@ -34,6 +34,9 @@
           },
           "note": {
             ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "startedAt": {
+            ".validate": "newData.isNumber()"
           }
         }
       }
@@ -41,12 +44,25 @@
 
     "reports_v7": {
       ".read": "auth != null && auth.token.role === 'admin'",
-      ".write": "auth != null && auth.token.role === 'admin'"
+      "$dateKey": {
+        "$reportId": {
+          ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')"
+        }
+      }
     },
 
     "ikram_v7": {
       ".read": "auth != null && auth.token.role === 'admin'",
-      ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')"
+      "$giftId": {
+        ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')"
+      }
+    },
+
+    "iade_v7": {
+      ".read": "auth != null && auth.token.role === 'admin'",
+      "$returnId": {
+        ".write": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')"
+      }
     },
 
     "cari_v7": {
@@ -68,8 +84,18 @@
     },
 
     "ayarlar_v7": {
-      ".read": "auth != null && auth.token.role === 'admin'",
-      ".write": "auth != null && auth.token.role === 'admin'"
+      ".read": "auth != null && (auth.token.role === 'garson' || auth.token.role === 'admin')",
+      "masaSayilari": {
+        ".write": "auth != null && auth.token.role === 'admin'"
+      },
+      "sifreler": {
+        ".read": "auth != null && auth.token.role === 'admin'",
+        ".write": "auth != null && auth.token.role === 'admin'"
+      },
+      "$other": {
+        ".read": "auth != null && auth.token.role === 'admin'",
+        ".write": "auth != null && auth.token.role === 'admin'"
+      }
     }
   }
 }

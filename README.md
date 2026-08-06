@@ -1,4 +1,6 @@
-# Sosyal Cafe POS
+# Sosyal Cafe POS v8.0
+
+**Güvenli Auth sürümü**: PIN girişi kaldırıldı, yerine **Firebase Authentication (e-posta + şifre)** ve **Custom Role Claim** (garson / admin) getirildi.
 
 Bu proje Netlify üzerinde barındırılıyor. Kalıcı güncellemeler için en sağlam yol:
 
@@ -33,11 +35,37 @@ Bu proje Netlify üzerinde barındırılıyor. Kalıcı güncellemeler için en 
    - Eğer repo bağlamak istemezsen, Netlify Dashboard > Deploys > Drag and drop ile dosyaları yükleyebilirsin.
    - Ancak bu manuel yöntem her seferinde elle yeniden yüklemeyi gerektirir.
 
+## 🔐 Giriş Bilgileri (v8.0)
+
+- Garson: e-posta + şifre ile POS ekranına girer.
+- Admin: e-posta + şifre ile Patron paneline girer.
+- E-posta adresleriyle roller **Firebase Console'dan** oluşturulur/atanır.
+- Detaylı adım adım rehber: [`FIREBASE_SECURITY_CHECKLIST.md`](FIREBASE_SECURITY_CHECKLIST.md)
+
+> ⚠️ **Service account JSON dosyası (`serviceAccountKey.json`) ASLA commit edilmemelidir.** `.gitignore`'a eklendi.
+
 ## Notlar
 
 - `netlify.toml` dosyası, statik HTML proje olarak Netlify’e deploy için hazır.
 - `COFFE.html` içinde `firebaseConfig` zaten canlı veri kaynağına işaret ediyor; bu yüzden bu dosyanın güncel olması yeterli.
 - `sosyalcafe.com.tr` domaini Netlify’e yönlendiyse, doğru dosyalar deploy edildiğinde canlı site güncellenecektir.
+- `index.html` otomatik olarak `COFFE.html`'e yönlendirir.
+
+## Doğrulama Araçları
+
+```bash
+# Bağımlılıkları kur
+npm install
+
+# Garson oluştur + rol ata
+node scripts/set-claims.js create garson@sosyalcafe.com "sifren" garson
+
+# Admin oluştur + rol ata
+node scripts/set-claims.js create admin@sosyalcafe.com "sifren" admin
+
+# Rol kontrol
+node scripts/set-claims.js get garson@sosyalcafe.com
+```
 
 ## QR Görsel Otomatik Koruma
 

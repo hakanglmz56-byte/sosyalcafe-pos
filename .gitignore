@@ -3,3 +3,9 @@ node_modules
 .DS_Store
 backups/
 logs/
+.vscode/
+
+# Firebase Admin SDK service account - ASLA commit etmeyin!
+serviceAccountKey.json
+serviceAccount*.json
+*.serviceAccount.json

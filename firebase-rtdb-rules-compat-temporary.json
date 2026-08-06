@@ -1,4 +1,4 @@
-öncelikle az önce ekledğimiz öz{
+{
   "rules": {
     ".read": false,
     ".write": false,
@@ -34,14 +34,26 @@
           },
           "note": {
             ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "startedAt": {
+            ".validate": "newData.isNumber()"
           }
         }
       }
     },
 
     "ikram_v7": {
-      ".read": false,
-      ".write": true
+      ".read": true,
+      "$giftId": {
+        ".write": true
+      }
+    },
+
+    "iade_v7": {
+      ".read": true,
+      "$returnId": {
+        ".write": true
+      }
     },
 
     "cari_v7": {
@@ -53,7 +65,7 @@
     },
 
     "cari_hareket_v7": {
-      ".read": false,
+      ".read": true,
       "$customerKey": {
         "$movementId": {
           ".write": true,
@@ -63,8 +75,12 @@
     },
 
     "reports_v7": {
-      ".read": false,
-      ".write": true
+      ".read": true,
+      "$dateKey": {
+        "$reportId": {
+          ".write": true
+        }
+      }
     },
 
     "ayarlar_v7": {

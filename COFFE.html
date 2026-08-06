@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sosyal Cafe - Akıllı POS v7.5 (Kurtarma Modüllü)</title>
+    <title>Sosyal Cafe - Akıllı POS v8.0 (Güvenli Auth)</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <style>
@@ -22,7 +23,8 @@
         .login-box { background: white; padding: 50px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); text-align: center; }
         .login-box h1 { margin-top: 0; color: var(--dark); font-size: 32px; }
         .login-box h1 span { color: var(--primary); }
-        .login-box input { font-size: 24px; padding: 15px; width: 220px; text-align: center; border: 2px solid var(--light); border-radius: 12px; margin-bottom: 20px; letter-spacing: 8px; outline: none; }
+        .login-box input { font-size: 18px; padding: 15px; width: 100%; text-align: left; border: 2px solid var(--light); border-radius: 12px; margin-bottom: 12px; outline: none; box-sizing: border-box; transition: border-color 0.3s; }
+        .login-box input:focus { border-color: var(--primary); }
         .login-box button { font-size: 18px; padding: 15px 40px; background: var(--dark); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; }
         
         .pos-container, .admin-container { display: none; width: 100%; height: 100%; }
@@ -202,9 +204,15 @@
     <div class="login-screen" id="loginScreen">
         <div class="login-box">
             <h1>Sosyal <span>Cafe</span></h1>
-            <input type="password" id="pinInput" placeholder="****" maxlength="4" onkeypress="if(event.key === 'Enter') checkLogin()">
-            <button onclick="checkLogin()">Giriş Yap</button>
+            <div id="loginForm">
+                <input type="email" id="emailInput" placeholder="E-posta" autocomplete="username">
+                <input type="password" id="passwordInput" placeholder="Şifre" autocomplete="current-password" onkeypress="if(event.key === 'Enter') checkLogin()">
+                <button onclick="checkLogin()">Giriş Yap</button>
+                <div id="loginError" style="color:var(--danger); font-size:13px; min-height:18px; margin-top:4px;"></div>
+            </div>
+            <div id="loginLoading" style="display:none; color:var(--dark); font-weight:bold; padding:15px;">Giriş yapılıyor...</div>
         </div>
+        <div style="margin-top:15px; font-size:11px; color:#94a3b8;">Güvenli oturum (Firebase Authentication)</div>
     </div>
 
     <div class="modal-overlay" id="moveTableModal"><div class="modal-box"><div class="modal-header"><h3>🔄 Hedef Masayı Seçin</h3><button class="modal-close-btn" onclick="closeMoveModal()">İptal</button></div><div style="padding: 15px; background: var(--sidebar-bg); display: flex; gap: 8px; overflow-x: auto;" id="moveZoneTabs"></div><div style="padding: 20px; overflow-y: auto; flex: 1; background: var(--sidebar-bg);" id="moveTablesGrid" class="table-grid"></div></div></div>
@@ -218,7 +226,6 @@
             <button class="admin-nav-btn" onclick="switchAdminTab('menu', event)">📋 Menü Yönetimi</button>
             <button class="admin-nav-btn" onclick="switchAdminTab('stok', event)">📦 Stok & Envanter</button>
             <button class="admin-nav-btn" onclick="switchAdminTab('masalar', event)">🪑 Masa Düzeni</button>
-            <button class="admin-nav-btn" onclick="switchAdminTab('personel', event)">👥 Personel Şifreleri</button>
             <div style="margin-top: auto;"><button class="admin-nav-btn" style="width:100%; background:var(--danger); text-align:center;" onclick="logout()">Çıkış Yap</button>
                 <div style="text-align: center; margin-top: 15px; font-size: 10px; color: #94a3b8;">Hakan Gülmez tarafından geliştirilmiştir.</div>
             </div>
@@ -315,11 +322,6 @@
                     <button style="padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;" onclick="updateZoneConfig()">Güncelle</button>
                 </div>
                 <ul id="currentZoneStatus" style="margin-top:20px; background:#f8fafc; padding:15px; border-radius:8px; list-style:none;"></ul>
-            </div>
-
-            <div class="admin-panel-section" id="tab-personel">
-                <h2>👥 Garson ve Personel Şifreleri</h2>
-                <table><thead><tr><th>Personel / Yetki</th><th>Güncel PIN</th><th>İşlem</th></tr></thead><tbody id="staffTableBody"></tbody></table>
             </div>
         </div>
     </div>
@@ -599,24 +601,42 @@
         };
 
         function checkLogin() {
-            const pin = document.getElementById('pinInput').value;
-            db.ref('ayarlar_v7/sifreler').once('value').then(snap => {
-                const sifreler = snap.val() || { garson: "1453", admin: "2026" };
-                
-                if (pin === sifreler.garson) {
-                    currentUserRole = 'garson';
+            const email = document.getElementById('emailInput').value.trim();
+            const password = document.getElementById('passwordInput').value;
+            const errBox = document.getElementById('loginError');
+            if (!email || !password) { errBox.innerText = "E-posta ve şifre girin."; return; }
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('loginLoading').style.display = 'block';
+            errBox.innerText = '';
+            firebase.auth().signInWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    return userCredential.user.getIdTokenResult();
+                })
+                .then(idTokenResult => {
+                    const role = (idTokenResult.claims && idTokenResult.claims.role) || 'garson';
+                    currentUserRole = role;
+                    document.getElementById('loginLoading').style.display = 'none';
                     document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('adminContainer').style.display = 'none';
-                    document.getElementById('posContainer').style.display = 'flex';
-                    initPOS();
-                } else if (pin === sifreler.admin) {
-                    currentUserRole = 'admin';
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('posContainer').style.display = 'none';
-                    document.getElementById('adminContainer').style.display = 'flex';
-                    switchAdminTab('raporlar');
-                } else { alert("Hatalı PIN!"); document.getElementById('pinInput').value = ""; }
-            }).catch(err => alert("Bağlantı hatası: Sisteme erişilemiyor. Lütfen internetinizi veya Firebase kurallarını kontrol edin."));
+                    document.getElementById('pinInput') && (document.getElementById('pinInput').value = "");
+                    if (role === 'admin') {
+                        document.getElementById('posContainer').style.display = 'none';
+                        document.getElementById('adminContainer').style.display = 'flex';
+                        switchAdminTab('raporlar');
+                    } else {
+                        document.getElementById('adminContainer').style.display = 'none';
+                        document.getElementById('posContainer').style.display = 'flex';
+                        initPOS();
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('loginForm').style.display = 'block';
+                    document.getElementById('loginLoading').style.display = 'none';
+                    let msg = "Giriş başarısız.";
+                    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-email' || err.code === 'auth/invalid-credential') msg = "E-posta veya şifre hatalı.";
+                    else if (err.code === 'auth/too-many-requests') msg = "Çok fazla deneme. Lütfen biraz bekleyin.";
+                    else msg = "Bağlantı hatası. Lütfen internetinizi kontrol edin.";
+                    errBox.innerText = msg;
+                });
         }
 
         function logout() {
@@ -625,19 +645,51 @@
                 clearInterval(tableTimerInterval);
                 tableTimerInterval = null;
             }
-            document.getElementById('pinInput').value = "";
+            document.getElementById('emailInput').value = "";
+            document.getElementById('passwordInput').value = "";
+            document.getElementById('loginError').innerText = "";
             document.getElementById('posContainer').style.display = 'none';
             document.getElementById('adminContainer').style.display = 'none';
             document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('loginLoading').style.display = 'none';
+            firebase.auth().signOut().catch(() => {});
         }
 
-        window.onload = () => { initDatabaseListen(); };
+        initDatabaseListen();
+
+        // QR menü ve POS: oturum yönetimi
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                user.getIdTokenResult().then(itr => {
+                    const role = (itr.claims && itr.claims.role) || 'garson';
+                    currentUserRole = role;
+                    document.getElementById('loginScreen').style.display = 'none';
+                    if (role === 'admin') {
+                        document.getElementById('posContainer').style.display = 'none';
+                        document.getElementById('adminContainer').style.display = 'flex';
+                        currentUserRole = 'admin';
+                        switchAdminTab('raporlar');
+                    } else {
+                        document.getElementById('adminContainer').style.display = 'none';
+                        document.getElementById('posContainer').style.display = 'flex';
+                        initPOS();
+                    }
+                });
+            } else {
+                currentUserRole = null;
+                document.getElementById('posContainer').style.display = 'none';
+                document.getElementById('adminContainer').style.display = 'none';
+                document.getElementById('loginScreen').style.display = 'flex';
+            }
+        });
+
+        window.onload = () => { /* handled above */ };
 
         function initDatabaseListen() {
             db.ref('ayarlar_v7').on('value', snap => {
                 const ayarlar = snap.val() || {};
                 if(ayarlar.masaSayilari) zoneConfigs = ayarlar.masaSayilari;
-                if(currentUserRole === 'admin' && document.getElementById('tab-personel').classList.contains('active')) renderStaffPasswords(ayarlar.sifreler);
                 if(currentUserRole === 'admin' && document.getElementById('tab-masalar').classList.contains('active')) renderZoneStatus();
             });
 
@@ -686,7 +738,6 @@
             if(tabId === 'menu') renderAdminMenuTable();
             if(tabId === 'raporlar') loadAdminReports();
             if(tabId === 'stok') { populateStockDropdown(); renderAdminStockTable(); }
-            if(tabId === 'personel') db.ref('ayarlar_v7/sifreler').once('value').then(s => renderStaffPasswords(s.val()));
             if(tabId === 'masalar') renderZoneStatus();
         }
 
@@ -835,19 +886,6 @@
             const list = document.getElementById('currentZoneStatus'); list.innerHTML = '';
             Object.keys(zoneConfigs).forEach(zone => { list.innerHTML += `<li><b>${zone}:</b> ${zoneConfigs[zone]} Masa</li>`; });
         }
-        function renderStaffPasswords(sifrelerObj) {
-            const sifreler = sifrelerObj || { garson: "1453", admin: "2026" };
-            document.getElementById('staffTableBody').innerHTML = `
-                <tr><td>Ana Garson (Sipariş Ekranı)</td><td style="font-weight:bold; letter-spacing:2px;">${sifreler.garson}</td><td><button style="padding:5px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="updatePIN('garson')">Değiştir</button></td></tr>
-                <tr><td>Yönetici (Patron Paneli)</td><td style="font-weight:bold; letter-spacing:2px; color:var(--danger);">${sifreler.admin}</td><td><button style="padding:5px 15px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer;" onclick="updatePIN('admin')">Değiştir</button></td></tr>
-            `;
-        }
-        function updatePIN(role) {
-            const newPIN = prompt(`Yeni PIN kodunu girin (Sadece 4 rakam):`);
-            if(newPIN && newPIN.length === 4 && !isNaN(newPIN)) db.ref(`ayarlar_v7/sifreler/${role}`).set(newPIN).then(() => alert('Şifre güncellendi!'));
-            else alert('Geçersiz şifre formatı.');
-        }
-
         function populateStockDropdown() {
             const select = document.getElementById('stockItemSelect'); const currentVal = select.value; select.innerHTML = '<option value="">-- Ürün Seçin --</option>';
             Object.values(globalMenuData).sort((a,b) => a.name.localeCompare(b.name)).forEach(item => { select.innerHTML += `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`; });

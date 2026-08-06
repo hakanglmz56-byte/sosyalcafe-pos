@@ -1,0 +1,12 @@
+{
+  "name": "sosyal-cafe-pos",
+  "version": "8.0.0",
+  "description": "Sosyal Cafe Akıllı POS - Firebase Authentication + Role Claim tabanlı güvenli sürüm",
+  "private": true,
+  "scripts": {
+    "set-claims": "node scripts/set-claims.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}
