@@ -9,3 +9,6 @@ logs/
 serviceAccountKey.json
 serviceAccount*.json
 *.serviceAccount.json
+
+# Local Netlify folder
+.netlify
