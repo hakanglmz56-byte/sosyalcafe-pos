@@ -1,6 +1,11 @@
 [build]
   publish = "."
-  command = ""
+  command = "npm install"
 
 [build.environment]
   NODE_VERSION = "18"
+
+# Netlify Functions (Personel Yönetimi)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

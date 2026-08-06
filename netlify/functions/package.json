@@ -1,0 +1,10 @@
+{
+  "name": "sosyal-cafe-functions",
+  "version": "1.0.0",
+  "description": "Sosyal Cafe Netlify Functions",
+  "private": true,
+  "main": "personel.js",
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}

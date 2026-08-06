@@ -226,6 +226,7 @@
             <button class="admin-nav-btn" onclick="switchAdminTab('menu', event)">📋 Menü Yönetimi</button>
             <button class="admin-nav-btn" onclick="switchAdminTab('stok', event)">📦 Stok & Envanter</button>
             <button class="admin-nav-btn" onclick="switchAdminTab('masalar', event)">🪑 Masa Düzeni</button>
+            <button class="admin-nav-btn" onclick="switchAdminTab('personel', event)">👥 Personel Yönetimi</button>
             <div style="margin-top: auto;"><button class="admin-nav-btn" style="width:100%; background:var(--danger); text-align:center;" onclick="logout()">Çıkış Yap</button>
                 <div style="text-align: center; margin-top: 15px; font-size: 10px; color: #94a3b8;">Hakan Gülmez tarafından geliştirilmiştir.</div>
             </div>
@@ -324,6 +325,40 @@
                     <button style="padding:10px 20px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;" onclick="updateZoneConfig()">Güncelle</button>
                 </div>
                 <ul id="currentZoneStatus" style="margin-top:20px; background:#f8fafc; padding:15px; border-radius:8px; list-style:none;"></ul>
+            </div>
+
+            <div class="admin-panel-section" id="tab-personel">
+                <h2>👥 Personel Yönetimi</h2>
+                <div style="padding:15px; background:rgba(139,92,246,0.08); border-radius:10px; margin-bottom:20px; font-size:14px; color:#334155;">
+                    Personel ekleme, rol değiştirme, devre dışı bırakma ve silme işlemlerini buradan Firebase Console'a girmeden yapabilirsiniz.
+                </div>
+
+                <div class="add-product-card">
+                    <h3>➕ Yeni Personel Ekle</h3>
+                    <div class="form-grid">
+                        <input type="text" id="newPersEmail" placeholder="E-posta (örn: ahmet@sosyalcafe.com)">
+                        <input type="password" id="newPersPass" placeholder="Şifre">
+                        <select id="newPersRole">
+                            <option value="garson">Garson</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <button style="background:var(--success); color:white; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="createPersonel()">➕ Personeli Ekle</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin:15px 0;">
+                    <h3 style="margin:0; color:var(--dark);">📋 Kayıtlı Personel</h3>
+                    <button style="background:var(--blue); color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;" onclick="loadPersonel()">🔄 Yenile</button>
+                </div>
+                <div style="max-height:400px; overflow-y:auto; border:1px solid var(--light); border-radius:8px;">
+                    <table style="margin-top:0;">
+                        <thead style="position:sticky; top:0;"><tr><th>Personel</th><th>Rol</th><th>Durum</th><th>İşlem</th></tr></thead>
+                        <tbody id="personelTableBody"><tr><td colspan="4" style="color:#94a3b8;">Yükleniyor...</td></tr></tbody>
+                    </table>
+                </div>
+                <div id="personelMsg" style="margin-top:12px; font-weight:bold; min-height:20px;"></div>
             </div>
         </div>
     </div>
@@ -752,6 +787,7 @@
             if(tabId === 'raporlar') loadAdminReports();
             if(tabId === 'stok') { populateStockDropdown(); renderAdminStockTable(); }
             if(tabId === 'masalar') renderZoneStatus();
+            if(tabId === 'personel') loadPersonel();
         }
 
         // --- ACİL KURTARMA (İLK YÜKLEME) BUTONU ---
@@ -912,6 +948,121 @@
                 tbody.innerHTML += `<tr><td style="color:var(--purple); font-weight:bold;">👤 ${escapeHTML(name)}</td><td>${data.saleCount}</td><td style="color:var(--success); font-weight:bold;">${data.saleTotal} TL</td><td style="color:var(--danger); font-weight:bold;">${data.wasteCount}</td></tr>`;
             });
         }
+        // --- PERSONEL YÖNETİMİ (Netlify Function) ---
+        const PERSONEL_ENDPOINT = '/.netlify/functions/personel';
+
+        function setPersonelMsg(text, isError) {
+            const el = document.getElementById('personelMsg');
+            if (el) { el.style.color = isError ? 'var(--danger)' : 'var(--success)'; el.innerText = text; }
+        }
+        async function getPersonelToken() {
+            const user = firebase.auth().currentUser;
+            if (!user) throw new Error('Oturum bulunamadı.');
+            const token = await user.getIdToken();
+            return token;
+        }
+        async function callPersonel(method, payload) {
+            const token = await getPersonelToken();
+            const opts = { method, headers: { 'Authorization': 'Bearer ' + token } };
+            if (payload) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(payload); }
+            const res = await fetch(PERSONEL_ENDPOINT, opts);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || ('Hata (' + res.status + ')'));
+            return data;
+        }
+        async function loadPersonel() {
+            const tbody = document.getElementById('personelTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">Yükleniyor...</td></tr>';
+            setPersonelMsg('');
+            try {
+                const data = await callPersonel('GET', null);
+                if (!data.users || data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">Kayıtlı personel bulunamadı.</td></tr>';
+                    return;
+                }
+                const currentEmail = (firebase.auth().currentUser && firebase.auth().currentUser.email) || '';
+                tbody.innerHTML = '';
+                data.users.forEach(u => {
+                    if (!u.email) return;
+                    const email = u.email;
+                    const displayName = (email.split('@')[0]).replace('.', ' ').replace(/[0-9]/g, '') || email;
+                    const isSelf = email === currentEmail;
+                    const roleBadge = u.role === 'admin'
+                        ? '<span style="background:rgba(139,92,246,0.12); color:var(--purple); padding:4px 10px; border-radius:6px; font-weight:700;">👑 Admin</span>'
+                        : (u.role === 'garson'
+                            ? '<span style="background:rgba(16,185,129,0.12); color:var(--success); padding:4px 10px; border-radius:6px; font-weight:700;">👤 Garson</span>'
+                            : '<span style="background:rgba(100,116,139,0.15); color:#64748b; padding:4px 10px; border-radius:6px; font-weight:700;">⚠️ Rol atanmamış</span>');
+                    const statusBadge = u.disabled
+                        ? '<span style="background:rgba(239,68,68,0.15); color:var(--danger); padding:4px 10px; border-radius:6px; font-weight:700;">Pasif</span>'
+                        : '<span style="background:rgba(16,185,129,0.12); color:var(--success); padding:4px 10px; border-radius:6px; font-weight:700;">Aktif</span>';
+
+                    const roleToggle = u.role === 'admin'
+                        ? `<button onclick="setPersonelRole('${escapeHTML(email)}', 'garson')" style="padding:6px 10px; background:#f1f5f9; color:#334155; border:none; border-radius:6px; cursor:pointer; font-weight:700;">Garsona Çevir</button>`
+                        : `<button onclick="setPersonelRole('${escapeHTML(email)}', 'admin')" style="padding:6px 10px; background:#f1f5f9; color:#334155; border:none; border-radius:6px; cursor:pointer; font-weight:700;">Admin Yap</button>`;
+
+                    const disableBtn = u.disabled
+                        ? `<button onclick="togglePersonel('${escapeHTML(email)}', 1)" style="padding:6px 10px; background:var(--success); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700;">Aktifleştir</button>`
+                        : `<button onclick="togglePersonel('${escapeHTML(email)}', 0)" style="padding:6px 10px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700;">Pasifleştir</button>`;
+
+                    const delBtn = isSelf
+                        ? '<span style="color:#94a3b8; font-size:12px;">(kendin)</span>'
+                        : `<button onclick="deletePersonel('${escapeHTML(email)}')" style="padding:6px 10px; background:var(--danger); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:700;">🗑️ Sil</button>`;
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${escapeHTML(displayName)}</b><br><small style="color:#64748b;">${escapeHTML(email)}</small></td>
+                            <td>${roleBadge}</td>
+                            <td>${statusBadge}</td>
+                            <td style="display:flex; gap:6px; flex-wrap:wrap;">${roleToggle} ${disableBtn} ${delBtn}</td>
+                        </tr>`;
+                });
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4" style="color:var(--danger);">Yüklenemedi.</td></tr>';
+                setPersonelMsg(e.message, true);
+            }
+        }
+        async function createPersonel() {
+            const email = document.getElementById('newPersEmail').value.trim();
+            const password = document.getElementById('newPersPass').value;
+            const role = document.getElementById('newPersRole').value;
+            if (!email || !password) { setPersonelMsg('E-posta ve şifre girin.', true); return; }
+            if (password.length < 6) { setPersonelMsg('Şifre en az 6 karakter olmalı.', true); return; }
+            try {
+                const data = await callPersonel('POST', { action: 'create', email, password, role });
+                setPersonelMsg(`✅ ${data.email} hesabı "${data.role}" olarak ${data.existing ? 'güncellendi' : 'oluşturuldu'}.`);
+                document.getElementById('newPersEmail').value = '';
+                document.getElementById('newPersPass').value = '';
+                loadPersonel();
+            } catch (e) { setPersonelMsg(e.message, true); }
+        }
+        async function setPersonelRole(email, role) {
+            if (!confirm(`${email} hesabının rolü "${role}" yapılsın mı?`)) return;
+            try {
+                const data = await callPersonel('POST', { action: 'setRole', email, role });
+                setPersonelMsg(`✅ ${data.email} rolü "${data.role}" oldu.`);
+                loadPersonel();
+            } catch (e) { setPersonelMsg(e.message, true); }
+        }
+        async function togglePersonel(email, fromDisabled) {
+            const newDisabled = fromDisabled === 1 ? false : true;
+            if (!confirm(`${email} hesabı ${newDisabled ? 'pasifleştirilsin' : 'aktifleştirilsin'} mi?`)) return;
+            try {
+                const data = await callPersonel('POST', { action: 'setDisabled', email, disabled: newDisabled });
+                setPersonelMsg(`✅ ${data.email} ${data.disabled ? 'pasifleştirildi' : 'aktifleştirildi'}.`);
+                loadPersonel();
+            } catch (e) { setPersonelMsg(e.message, true); }
+        }
+        async function deletePersonel(email) {
+            if (!confirm(`"${email}" personeli tamamen silinecek. Emin misiniz?`)) return;
+            if (!confirm(`SON UYARI: Bu işlem geri alınamaz. ${email} hesabını silmek istediğinize emin misiniz?`)) return;
+            try {
+                const data = await callPersonel('POST', { action: 'delete', email });
+                setPersonelMsg(`✅ ${data.email} silindi.`);
+                loadPersonel();
+            } catch (e) { setPersonelMsg(e.message, true); }
+        }
+
         function populateStockDropdown() {
             const select = document.getElementById('stockItemSelect'); const currentVal = select.value; select.innerHTML = '<option value="">-- Ürün Seçin --</option>';
             Object.values(globalMenuData).sort((a,b) => a.name.localeCompare(b.name)).forEach(item => { select.innerHTML += `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`; });
@@ -1112,16 +1263,19 @@
             const tables = globalTablesData[activeZone] || {};
             for(let i=1; i<=zoneConfigs[activeZone]; i++) {
                 const tableData = tables[i] || { orders: false, total: 0, note: "", startedAt: null };
+                const isCari = !!tableData.cariDurum && !tableData.orders;
                 const isOccupied = !!tableData.orders;
                 const activeTotal = calculateActiveOrdersTotal(tableData.orders);
                 const elapsedText = tableData.startedAt ? formatElapsed(Date.now() - Number(tableData.startedAt)) : '';
-                const btn = document.createElement('button'); btn.className = 'table-btn ' + (isOccupied ? 'occupied' : 'empty');
+                const btn = document.createElement('button');
+                if (isCari) { btn.className = 'table-btn occupied'; btn.style.background = 'var(--purple)'; }
+                else { btn.className = 'table-btn ' + (isOccupied ? 'occupied' : 'empty'); }
                 if(activeTable === `${activeZone}-${i}`) btn.classList.add('active');
                 btn.innerHTML = `
-                    <div class="table-name">Masa ${i}</div>
+                    <div class="table-name">${isCari ? 'CARİ' : 'Masa ' + i}</div>
                     <div class="table-meta">
                         <span class="table-time">${isOccupied ? elapsedText : ''}</span>
-                        <span class="table-price">${isOccupied ? activeTotal + ' TL' : ''}</span>
+                        <span class="table-price">${isCari ? (tableData.cariBorc + ' TL') : (isOccupied ? activeTotal + ' TL' : '')}</span>
                     </div>
                 `;
                 btn.onclick = () => selectTable(activeZone, i); container.appendChild(btn);
@@ -1146,8 +1300,8 @@
         function selectTable(zone, tId) {
             activeTable = `${zone}-${tId}`;
             document.getElementById('emptyOrderScreen').style.display = 'none';
-            document.getElementById('activeTableTitle').innerText = `${zone} - Masa ${tId}`;
             const tableData = globalTablesData[zone][tId] || {};
+            document.getElementById('activeTableTitle').innerText = (tableData.cariDurum && !tableData.orders) ? `${zone} - Masa ${tId} (CARİ ${tableData.cariBorc} TL)` : `${zone} - Masa ${tId}`;
             document.getElementById('tableNoteInput').value = tableData.note || "";
             updateOrderScreenVisibility();
             renderTables(); renderPOSMenu(); renderOrders();
@@ -1523,11 +1677,19 @@
 
             flow
                 .then(() => db.ref(`reports_v7/${meta.dateKey}`).push().set(reportObj))
-                .then(() => db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null }))
                 .then(() => {
-                    alert(`İşlem tamamlandı. Nakit: ${cashNow} TL, Cari borç: ${debt} TL`);
+                    if (debt > 0) {
+                        return db.ref(`masalar_v7/${zone}/${tId}`).set({
+                            orders: false, total: 0, note: "", startedAt: null,
+                            cariDurum: true, cariBorc: debt, cariNakitOdenen: cashNow, cariMusteri: name
+                        });
+                    } else {
+                        return db.ref(`masalar_v7/${zone}/${tId}`).set({ orders: false, total: 0, note: "", startedAt: null });
+                    }
+                })
+                .then(() => {
+                    alert(`İşlem tamamlandı. Nakit: ${cashNow} TL, Cari borç: ${debt} TL. Masa kapatılmadı, cari borç masada saklandı.`);
                     closeCariModal();
-                    closeOrderScreen();
                 })
                 .catch(e => alert('Cariye yazma hatası: ' + e.message));
         }
