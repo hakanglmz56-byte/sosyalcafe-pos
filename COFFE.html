@@ -1487,7 +1487,18 @@
                 }
                 return Promise.all(writes);
             })
-                .then(() => recalculateTotal(zone, tId))
+                .then(() => db.ref(`masalar_v7/${zone}/${tId}/orders`).once('value'))
+                .then(snap => {
+                    const orders = snap.val() || false;
+                    if (!globalTablesData[zone]) globalTablesData[zone] = {};
+                    const currentTableData = globalTablesData[zone][tId] || { orders: false, total: 0, note: '', startedAt: null, paymentHistory: [] };
+                    globalTablesData[zone][tId] = { ...currentTableData, orders, startedAt: now };
+                    if (activeTable === `${zone}-${tId}`) {
+                        renderTables();
+                        renderOrders();
+                    }
+                    return recalculateTotal(zone, tId);
+                })
                 .then(() => {
                     if (window.innerWidth <= 1200) {
                         setTimeout(() => {
@@ -1570,13 +1581,21 @@
 
         function recalculateTotal(zone, tId) {
             return db.ref(`masalar_v7/${zone}/${tId}/orders`).once('value').then(snap => {
+                const orders = snap.val() || false;
                 let total = 0; 
-                if(snap.val()) {
-                    Object.values(snap.val()).forEach(o => {
+                if(orders) {
+                    Object.values(orders).forEach(o => {
                         if(o && o.status !== 'returned') total += Number(o.price || 0);
                     });
                 }
-                return db.ref(`masalar_v7/${zone}/${tId}`).update({ total: total, orders: snap.val() || false });
+                if (!globalTablesData[zone]) globalTablesData[zone] = {};
+                const currentTableData = globalTablesData[zone][tId] || { orders: false, total: 0, note: '', startedAt: null, paymentHistory: [] };
+                globalTablesData[zone][tId] = { ...currentTableData, orders, total, startedAt: currentTableData.startedAt || Date.now() };
+                if (activeTable === `${zone}-${tId}`) {
+                    renderTables();
+                    renderOrders();
+                }
+                return db.ref(`masalar_v7/${zone}/${tId}`).update({ total: total, orders: orders });
             });
         }
 
