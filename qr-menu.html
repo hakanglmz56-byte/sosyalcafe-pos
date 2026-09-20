@@ -98,8 +98,13 @@
 
         let globalMenuData = {};
         let globalStockData = {};
+        const hiddenCategoryNames = [
+            'karışım nargile tütünü',
+            'karışık nargile tütünü',
+            'karisik nargile tutunu',
+            'karisik nargile tütünü'
+        ];
         const menuCategories = [
-            "Karışım Nargile Tütünü",
             "Nargile",
             "Sıcak İçecekler",
             "Soğuk İçecekler",
@@ -116,6 +121,21 @@
             "Aperatifler",
             "Çerezler"
         ];
+        function normalizeCategoryName(value) {
+            return String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/ı/g, 'i')
+                .replace(/ğ/g, 'g')
+                .replace(/ü/g, 'u')
+                .replace(/ş/g, 's')
+                .replace(/ö/g, 'o')
+                .replace(/ç/g, 'c');
+        }
+        function isCategoryHidden(categoryName) {
+            const normalized = normalizeCategoryName(categoryName);
+            return hiddenCategoryNames.includes(normalized);
+        }
         let currentCategory = '';
         let currentLang = localStorage.getItem('qrMenuLang') || 'tr';
         const langLabels = {
@@ -124,7 +144,6 @@
         };
         const categoryLabels = {
             en: {
-                'Karışım Nargile Tütünü': 'Hookah Mix Tobacco',
                 Nargile: 'Hookah',
                 'Sıcak İçecekler': 'Hot Drinks',
                 'Soğuk İçecekler': 'Cold Drinks',
@@ -315,7 +334,7 @@
         }
 
         function getCategories(menuData) {
-            return menuCategories.filter(cat => Object.values(menuData).some(item => item.category === cat));
+            return menuCategories.filter(cat => !isCategoryHidden(cat) && Object.values(menuData).some(item => item.category === cat));
         }
 
         function renderCategoryTabs() {
@@ -345,7 +364,7 @@
                 const translatedName = translateMenuText(item.name || '');
                 const translatedDesc = translateMenuText(item.desc || '');
                 const text = `${translatedName} ${translatedDesc}`.toLowerCase();
-                const categoryMatch = item.category === currentCategory;
+                const categoryMatch = item.category === currentCategory && !isCategoryHidden(item.category);
                 const hiddenInQr = item.hiddenInQr === true || item.hiddenInQr === 'true';
                 return !hiddenInQr && categoryMatch && (!searchQuery || text.includes(searchQuery));
             });

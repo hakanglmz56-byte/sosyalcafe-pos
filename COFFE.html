@@ -474,8 +474,13 @@
         let globalMenuData = {}; let globalStockData = {}; let currentUserRole = null; let currentUserEmail = '';
         let activeZone = 'Salon', activeTable = null; let globalTablesData = {};
         let zoneConfigs = { 'Salon': 20, 'Okey': 15, 'Orta Salon': 10, 'Bahçe': 25 };
+        const hiddenCategoryNames = [
+            'karışım nargile tütünü',
+            'karışık nargile tütünü',
+            'karisik nargile tutunu',
+            'karisik nargile tütünü'
+        ];
         const menuCategories = [
-            "Karışım Nargile Tütünü",
             "Nargile",
             "Sıcak İçecekler",
             "Soğuk İçecekler",
@@ -492,6 +497,21 @@
             "Aperatifler",
             "Çerezler"
         ];
+        function normalizeCategoryName(value) {
+            return String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/ı/g, 'i')
+                .replace(/ğ/g, 'g')
+                .replace(/ü/g, 'u')
+                .replace(/ş/g, 's')
+                .replace(/ö/g, 'o')
+                .replace(/ç/g, 'c');
+        }
+        function isCategoryHidden(categoryName) {
+            const normalized = normalizeCategoryName(categoryName);
+            return hiddenCategoryNames.includes(normalized);
+        }
         let currentCategory = menuCategories[0]; let moveTargetZone = 'Salon'; let currentReportData = [];
         let tableTimerInterval = null;
         let quantityInputBuffer = '';
@@ -1313,7 +1333,7 @@
         function initPOSCategories() {
             if(currentUserRole !== 'garson') return;
             const posCats = document.getElementById('posCategories'); if(!posCats) return;
-            const availableCategories = menuCategories.filter(cat => Object.values(globalMenuData).some(item => item.category === cat));
+            const availableCategories = menuCategories.filter(cat => !isCategoryHidden(cat) && Object.values(globalMenuData).some(item => item.category === cat));
             if (!availableCategories.includes(currentCategory)) currentCategory = availableCategories[0] || menuCategories[0];
             posCats.innerHTML = '';
             availableCategories.forEach(cat => { posCats.innerHTML += `<button class="cat-btn ${cat === currentCategory ? 'active' : ''}" onclick="filterCategory('${escapeHTML(cat)}', event)">${escapeHTML(cat)}</button>`; });
@@ -1409,7 +1429,7 @@
             const container = document.getElementById('menuContainer'); container.innerHTML = '';
             Object.keys(globalMenuData).forEach(key => {
                 const item = globalMenuData[key];
-                if(item.category === currentCategory) {
+                if(item.category === currentCategory && !isCategoryHidden(item.category)) {
                     const safeName = item.name.replace(/[.#$\[\]]/g, ''); const stock = globalStockData[safeName]; const isOutOfStock = (stock !== undefined && stock <= 0);
                     const btn = document.createElement('button'); btn.className = `menu-item-btn ${isOutOfStock ? 'out-of-stock' : ''}`;
                     if(isOutOfStock) { 
