@@ -2144,12 +2144,12 @@
             }
 
             const closedHistory = [...prevHistory, paymentHistoryEntry];
-            const remainingOrders = Object.keys(preservedOrders).length > 0 ? { ...preservedOrders } : false;
-            const keepTableOpen = remainingOrders !== false && Object.keys(remainingOrders).length > 0;
-            // Masa tamamen kapaninca odeme gecmisi TEMIZLENIR; masa bir sonraki musteriye sifir baslar.
-            // Kapanan adisyon dokumu rapora ve lastClosedHistory alanina yazilir (izlenebilirlik korunur).
-            const updatePayload = keepTableOpen
-                ? { orders: remainingOrders, total: 0, note: tableData.note || '', startedAt: tableData.startedAt || Date.now(), paid: 0, paymentHistory: closedHistory }
+            // Masa tamamen odendiginde TUM siparisler (daha once odenmis 'paid' olanlar dahil) temizlenir.
+            // Boylece masa bir sonraki musteriye tamamen SIFIR durumda baslar; eski siparis gecmisi masada kalmaz.
+            // Odeme ile kapanmayan (kismi/bekleyen) siparis varsa masa ACIK kalir.
+            const hasUnpaidActive = Object.values(tableData.orders || {}).some(o => o && o.status !== 'returned' && o.status !== 'paid');
+            const updatePayload = hasUnpaidActive
+                ? { orders: { ...preservedOrders, ...soldOrders }, total: 0, note: tableData.note || '', startedAt: tableData.startedAt || Date.now(), paid: 0, paymentHistory: closedHistory }
                 : { orders: false, total: 0, note: "", startedAt: null, paid: 0, paymentHistory: [], lastClosedAt: Date.now(), lastClosedHistory: closedHistory };
             db.ref(`masalar_v7/${zone}/${tId}`).set(updatePayload)
                 .then(() => { closeOrderScreen(); });
