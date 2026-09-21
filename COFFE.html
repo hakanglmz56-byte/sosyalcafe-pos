@@ -1509,19 +1509,6 @@
             const startedAt = Date.now();
             const payload = {};
 
-            // GÜVENLİK: Masa boşken (yeni müşteri başlıyor) eski adisyon kalıntısı varsa
-            // ödeme geçmişi/toplam temizlenir ki önceki masanın borcu yeni masaya sızmasın.
-            const mevcutVeri = globalTablesData[zone] && globalTablesData[zone][tId];
-            const masadaAktifSiparis = mevcutVeri && mevcutVeri.orders && Object.keys(mevcutVeri.orders).length > 0;
-            if (!masadaAktifSiparis) {
-                tableRef.update({ paid: 0, paymentHistory: [], total: 0, cariDurum: null, cariBorc: null, cariNakitOdenen: null, cariMusteri: null });
-                if (globalTablesData[zone] && globalTablesData[zone][tId]) {
-                    globalTablesData[zone][tId].paid = 0;
-                    globalTablesData[zone][tId].paymentHistory = [];
-                    globalTablesData[zone][tId].total = 0;
-                }
-            }
-
             for (let i = 0; i < qty; i++) {
                 const createdAt = Date.now() + i;
                 const createdDate = new Date(createdAt).toLocaleDateString('tr-TR');
