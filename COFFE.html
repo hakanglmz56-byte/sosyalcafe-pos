@@ -1509,6 +1509,19 @@
             const startedAt = Date.now();
             const payload = {};
 
+            // GÜVENLİK: Masa boşken (yeni müşteri başlıyor) eski adisyon kalıntısı varsa
+            // ödeme geçmişi/toplam temizlenir ki önceki masanın borcu yeni masaya sızmasın.
+            const mevcutVeri = globalTablesData[zone] && globalTablesData[zone][tId];
+            const masadaAktifSiparis = mevcutVeri && mevcutVeri.orders && Object.keys(mevcutVeri.orders).length > 0;
+            if (!masadaAktifSiparis) {
+                tableRef.update({ paid: 0, paymentHistory: [], total: 0, cariDurum: null, cariBorc: null, cariNakitOdenen: null, cariMusteri: null });
+                if (globalTablesData[zone] && globalTablesData[zone][tId]) {
+                    globalTablesData[zone][tId].paid = 0;
+                    globalTablesData[zone][tId].paymentHistory = [];
+                    globalTablesData[zone][tId].total = 0;
+                }
+            }
+
             for (let i = 0; i < qty; i++) {
                 const createdAt = Date.now() + i;
                 const createdDate = new Date(createdAt).toLocaleDateString('tr-TR');
@@ -2143,9 +2156,14 @@
                 db.ref(`reports_v7/${dateKey}`).push().set(reportObj);
             }
 
+            const closedHistory = [...prevHistory, paymentHistoryEntry];
             const remainingOrders = Object.keys(preservedOrders).length > 0 ? { ...preservedOrders } : false;
             const keepTableOpen = remainingOrders !== false && Object.keys(remainingOrders).length > 0;
-            const updatePayload = keepTableOpen ? { orders: remainingOrders, total: 0, note: tableData.note || '', startedAt: tableData.startedAt || Date.now(), paid: 0, paymentHistory: [...prevHistory, paymentHistoryEntry] } : { orders: false, total: 0, note: "", startedAt: null, paid: 0, paymentHistory: [...prevHistory, paymentHistoryEntry] };
+            // Masa tamamen kapaninca odeme gecmisi TEMIZLENIR; masa bir sonraki musteriye sifir baslar.
+            // Kapanan adisyon dokumu rapora ve lastClosedHistory alanina yazilir (izlenebilirlik korunur).
+            const updatePayload = keepTableOpen
+                ? { orders: remainingOrders, total: 0, note: tableData.note || '', startedAt: tableData.startedAt || Date.now(), paid: 0, paymentHistory: closedHistory }
+                : { orders: false, total: 0, note: "", startedAt: null, paid: 0, paymentHistory: [], lastClosedAt: Date.now(), lastClosedHistory: closedHistory };
             db.ref(`masalar_v7/${zone}/${tId}`).set(updatePayload)
                 .then(() => { closeOrderScreen(); });
         }
