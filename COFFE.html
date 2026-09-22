@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
     <style>
         :root { 
@@ -301,7 +302,13 @@
                     </div>
                     <div class="form-grid" style="margin-top: 10px;">
                         <input type="text" id="newProdDesc" placeholder="Açıklama / İçindekiler">
-                        <input type="text" id="newProdImg" placeholder="Fotoğraf URL Linki">
+                        <input type="text" id="newProdImg" placeholder="Fotoğraf URL Linki (veya aşağıdan yükleyin)" oninput="previewProductImage()">
+                    </div>
+                    <div style="margin-top: 10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#f8fafc; border:1px dashed var(--light); border-radius:10px; padding:12px;">
+                        <input type="file" id="prodImgFile" accept="image/*" style="display:none;" onchange="uploadProductImage(this.files[0])">
+                        <button type="button" style="background:var(--blue); color:white; border:none; padding:11px 18px; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="document.getElementById('prodImgFile').click()">📁 Bilgisayardan/Telefondan Fotoğraf Seç</button>
+                        <span id="prodImgStatus" style="font-size:13px; color:#64748b; font-weight:600;"></span>
+                        <img id="prodImgPreview" src="" alt="" style="display:none; width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid var(--light);">
                     </div>
                     <div style="margin-top: 8px; display:flex; align-items:center; gap:8px; color:#334155; font-weight:600;">
                         <input type="checkbox" id="newProdHideInQr" style="width:16px; height:16px;">
@@ -467,9 +474,13 @@
     <script>
         function escapeHTML(str) { return str ? str.toString().replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : ''; }
 
-        const firebaseConfig = { apiKey: "AIzaSyDaJjJ0a_yF9yHgTxmLr6nnX99UTWnn8-0", authDomain: "cafe-adisyon-2bcf0.firebaseapp.com", databaseURL: "https://cafe-adisyon-2bcf0-default-rtdb.firebaseio.com", projectId: "cafe-adisyon-2bcf0" };
+        const firebaseConfig = { apiKey: "AIzaSyDaJjJ0a_yF9yHgTxmLr6nnX99UTWnn8-0", authDomain: "cafe-adisyon-2bcf0.firebaseapp.com", databaseURL: "https://cafe-adisyon-2bcf0-default-rtdb.firebaseio.com", projectId: "cafe-adisyon-2bcf0", storageBucket: "cafe-adisyon-2bcf0.firebasestorage.app" };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
+        // Firebase Storage: fotoğraf yükleme için. Bucket adı otomatik algılanır
+        // (yeni projeler "firebasestorage.app", eski projeler "appspot.com" kullanır).
+        let storage;
+        try { storage = firebase.storage(); } catch (e) { storage = null; }
 
         let globalMenuData = {}; let globalStockData = {}; let currentUserRole = null; let currentUserEmail = '';
         let activeZone = 'Salon', activeTable = null; let globalTablesData = {};
@@ -899,6 +910,83 @@
             else { customInput.style.display = 'none'; customInput.value = ''; }
         }
 
+        // ── FOTOĞRAF YÜKLEME (Firebase Storage) ──
+        function setImgStatus(text, color) {
+            const el = document.getElementById('prodImgStatus');
+            if (el) { el.innerText = text; el.style.color = color || '#64748b'; }
+        }
+        function previewProductImage() {
+            const url = (document.getElementById('newProdImg').value || '').trim();
+            const img = document.getElementById('prodImgPreview');
+            if (!img) return;
+            if (url) { img.src = url; img.style.display = 'block'; img.onerror = () => { img.style.display = 'none'; }; }
+            else { img.style.display = 'none'; img.src = ''; }
+        }
+        // Bucket varyasyonlarını dene: önce config'teki, sonra alternatifler
+        function getStorageBuckets() {
+            const projectId = 'cafe-adisyon-2bcf0';
+            const buckets = [];
+            try { if (firebase.app().options.storageBucket) buckets.push(firebase.app().options.storageBucket); } catch (e) {}
+            buckets.push(projectId + '.firebasestorage.app');
+            buckets.push(projectId + '.appspot.com');
+            return [...new Set(buckets)];
+        }
+        // Geçerli (erişilebilir) bucket'ı bul ve referans üret
+        let _activeBucket = null;
+        async function resolveBucket() {
+            if (_activeBucket) return _activeBucket;
+            for (const b of getStorageBuckets()) {
+                try {
+                    const s = firebase.app().storage(b);
+                    // varlık testi: liste çekmeyi dene (izin yoksa hata vermez ama bucket yoksa 404 verir)
+                    await s.ref('_probe_').getDownloadURL().catch(() => {});
+                    _activeBucket = b;
+                    return b;
+                } catch (e) {}
+            }
+            _activeBucket = getStorageBuckets()[0];
+            return _activeBucket;
+        }
+        function storageRefFor(path) {
+            const bucketName = _activeBucket || getStorageBuckets()[0];
+            try {
+                return firebase.app().storage(bucketName).ref(path);
+            } catch (e) {
+                try { return firebase.storage().ref(path); } catch (e2) { return null; }
+            }
+        }
+        async function uploadProductImage(file) {
+            if (!file) return;
+            if (!file.type || !file.type.startsWith('image/')) { setImgStatus('❌ Sadece resim dosyası yükleyin.', '#ef4444'); return; }
+            if (file.size > 5 * 1024 * 1024) { setImgStatus('❌ Dosya 5MB\'dan büyük olamaz.', '#ef4444'); return; }
+            setImgStatus('⏳ Hazırlanıyor...', '#3b82f6');
+            await resolveBucket();
+            const ref = storageRefFor('menu-images/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_'));
+            if (!ref) { setImgStatus('❌ Firebase Storage başlatılamadı. Console\'dan Storage\'ı açın.', '#ef4444'); return; }
+            setImgStatus('⏳ Yükleniyor... %0', '#3b82f6');
+            const task = ref.put(file);
+            task.on('state_changed',
+                (snap) => {
+                    const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+                    setImgStatus('⏳ Yükleniyor... %' + pct, '#3b82f6');
+                },
+                (err) => {
+                    setImgStatus('❌ Yükleme hatası: ' + err.message, '#ef4444');
+                },
+                async () => {
+                    try {
+                        const url = await task.snapshot.ref.getDownloadURL();
+                        const input = document.getElementById('newProdImg');
+                        if (input) input.value = url;
+                        previewProductImage();
+                        setImgStatus('✅ Yüklendi! (Kaydet butonuna basın)', '#10b981');
+                    } catch (e) {
+                        setImgStatus('❌ URL alınamadı: ' + e.message, '#ef4444');
+                    }
+                }
+            );
+        }
+
         function saveProduct() {
             const editKey = document.getElementById('editProdKey').value;
             const name = document.getElementById('newProdName').value.trim();
@@ -979,13 +1067,14 @@
             let exists = Array.from(selectElem.options).some(opt => opt.value === item.category);
             if(exists) { selectElem.value = item.category; customInput.style.display = 'none'; } 
             else { selectElem.value = 'YENI'; customInput.style.display = 'block'; customInput.value = item.category; }
-            document.getElementById('newProdDesc').value = item.desc || ""; document.getElementById('newProdImg').value = item.image || ""; 
+            document.getElementById('newProdDesc').value = item.desc || ""; document.getElementById('newProdImg').value = item.image || ""; previewProductImage(); 
             document.getElementById('newProdHideInQr').checked = item.hiddenInQr === true;
             document.getElementById('formTitle').innerText = "✏️ Ürünü Düzenle"; document.getElementById('saveBtn').innerText = "💾 Güncelle"; document.getElementById('cancelBtn').style.display = "inline-block"; window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function cancelEdit() { 
             document.getElementById('editProdKey').value = ""; document.getElementById('newProdName').value = ""; document.getElementById('newProdPrice').value = ""; document.getElementById('newProdDesc').value = ""; document.getElementById('newProdImg').value = ""; document.getElementById('customCatInput').value = ""; document.getElementById('customCatInput').style.display = "none"; document.getElementById('newProdCatSelect').selectedIndex = 0;
+            previewProductImage(); setImgStatus('');
             document.getElementById('newProdHideInQr').checked = false;
             document.getElementById('formTitle').innerText = "➕ Yeni Ürün Ekle / Düzenle"; document.getElementById('saveBtn').innerText = "➕ Ürünü Kaydet"; document.getElementById('cancelBtn').style.display = "none"; 
         }

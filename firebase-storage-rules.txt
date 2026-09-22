@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Firebase Storage guvenlik kurallari (Sosyal Cafe)
+// Console > Storage > Rules sekmesine yapistirip "Publish" edin.
+//
+// - Herkes (QR menu misafirleri) gorselleri GOREBILIR.
+// - Sadece giris yapmis admin, gorsel YUKLEYEBILIR/SILEBILIR.
+// - Yukleme: sadece resim, en fazla 5MB.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Menu urun fotograflari
+    match /menu-images/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.token.role == 'admin'
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    // Diger tum yollara erisim kapali
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
